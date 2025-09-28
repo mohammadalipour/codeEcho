@@ -49,7 +49,7 @@ var (
 
 func init() {
 	// Root command flags
-	rootCmd.PersistentFlags().StringVar(&dbDSN, "db-dsn", "codeecho_user:codeecho_pass@tcp(localhost:3306)/codeecho_db", "Database connection string")
+	rootCmd.PersistentFlags().StringVar(&dbDSN, "db-dsn", "codeecho_user:codeecho_pass@tcp(codeecho-mysql:3306)/codeecho_db?parseTime=true", "Database connection string")
 
 	// Analyze command flags
 	analyzeCmd.Flags().StringVarP(&repoPath, "repo-path", "r", "", "Path to the Git repository (required)")
@@ -391,3 +391,4 @@ func runHotspots(cmd *cobra.Command, args []string) error {
 
 	return nil
 }
+// Update 1
