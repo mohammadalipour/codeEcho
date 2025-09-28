@@ -401,3 +401,4 @@ func runHotspots(cmd *cobra.Command, args []string) error {
 // Update 8
 // Update 9
 // Update 10
+// Update 11
