@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  codeecho-analyzer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: codeecho-analyzer
+    ports:
+      - "8080:8080"
+    environment:
+      - DB_HOST=codeecho-mysql
+      - DB_PORT=3306
+      - DB_NAME=codeecho_db
+      - DB_USER=codeecho_user
+      - DB_PASSWORD=codeecho_pass
+    volumes:
+      - .:/workspace:ro  # Mount current directory as read-only
+    depends_on:
+      - codeecho-mysql
+    networks:
+      - codeecho-network
+    restart: unless-stopped
+
+  codeecho-mysql:
+    image: mysql:8.0
+    container_name: codeecho-mysql
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=codeecho_root_password
+      - MYSQL_DATABASE=codeecho_db
+      - MYSQL_USER=codeecho_user
+      - MYSQL_PASSWORD=codeecho_pass
+    volumes:
+      - codeecho_mysql_data:/var/lib/mysql
+    networks:
+      - codeecho-network
+    restart: unless-stopped
+
+volumes:
+  codeecho_mysql_data:
+
+networks:
+  codeecho-network:
+    driver: bridge
