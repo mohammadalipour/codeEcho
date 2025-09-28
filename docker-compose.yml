@@ -16,6 +16,7 @@ services:
       - DB_PASSWORD=codeecho_pass
     volumes:
       - .:/workspace:ro  # Mount current directory as read-only
+      - ..:/repositories:ro  # Mount parent directory to access other repos
     depends_on:
       - codeecho-mysql
     networks:

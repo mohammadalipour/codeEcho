@@ -32,10 +32,10 @@ func AnalyzeHotspots(projectID int, storage Storage) ([]string, error) {
 	}
 
 	// Step 3: Identify Hotspots
-	// Define a file as a Hotspot if its ChangeCount > 10
+	// Define a file as a Hotspot if its ChangeCount > 5
 	var hotspots []string
 	for filePath, changeCount := range filePathToChangeCount {
-		if changeCount > 10 {
+		if changeCount > 5 {
 			hotspots = append(hotspots, filePath)
 		}
 	}

@@ -1,0 +1,81 @@
+# IDE and Editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Go specific
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Go workspace file
+go.work
+
+# Build artifacts
+main
+codeecho
+/build/
+/dist/
+
+# Dependency directories
+vendor/
+
+# Temporary files
+*.tmp
+*.log
+*.pid
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Docker volumes and data
+/data/
+/mysql-data/
+
+# Project specific binaries
+codeecho-analyzer
+analyzer
+
+# Development and debug files
+debug
+debug.log
+*.debug
+
+# Coverage reports
+coverage.txt
+coverage.html
+
+# Profiling output
+*.pprof
+
+# Local development files
+*.local.yml
+*.local.yaml
+
+# Test databases and temporary data
+*.db
+test.db
+*.sqlite
+*.sqlite3
