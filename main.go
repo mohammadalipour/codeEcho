@@ -371,15 +371,14 @@ func runHotspots(cmd *cobra.Command, args []string) error {
 	// Display results
 	if len(hotspots) == 0 {
 		fmt.Println("No hotspots found for this project.")
-		fmt.Println("(Hotspots are files that have been changed in more than 10 commits)")
+		fmt.Println("(Hotspots are files that have been changed in more than 5 commits)")
 		return nil
 	}
 
-	fmt.Printf("\nFound %d hotspot(s):\n", len(hotspots))
-	fmt.Println("These files have been changed in more than 10 commits:")
-	fmt.Println("--------------------------------------------------------")
-
-	for i, filePath := range hotspots {
+		fmt.Printf("\nFound %d hotspot(s):\n", len(hotspots))
+		fmt.Println("These files have been changed in more than 5 commits:")
+		fmt.Println("--------------------------------------------------------")
+		for i, filePath := range hotspots {
 		fmt.Printf("%d. %s\n", i+1, filePath)
 	}
 
@@ -403,3 +402,4 @@ func runHotspots(cmd *cobra.Command, args []string) error {
 // Update 10
 // Update 11
 // Update 12
+// Test comment for update functionality
