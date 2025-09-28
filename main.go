@@ -392,3 +392,4 @@ func runHotspots(cmd *cobra.Command, args []string) error {
 	return nil
 }
 // Update 1
+// Update 2
