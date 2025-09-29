@@ -1,206 +1,96 @@
-# CodeEcho - Git Repository Analyzer
+# CodeEcho - Git Repository Analytics Platform
 
-CodeEcho is a CLI application that analyzes Git repositories, extracts commit history and file changes, and stores the data in a MySQL database for further analysis.
+> **🎉 NEW: Complete DDD Architecture + React Dashboard!**
 
-## Features
+CodeEcho is now a **complete Git analytics platform** with a modern **Domain-Driven Design (DDD)** backend and beautiful **React dashboard** for visualizing your repository insights.
 
-- **Full Repository Analysis**: Extract complete commit history from any Git repository
-- **Incremental Updates**: Update existing projects with new commits since last analysis
-- **Database Storage**: Store commits and file changes in MySQL for querying and reporting
-- **Docker Support**: Ready-to-use Docker Compose setup
+## 🏗️ **Architecture**
 
-## Prerequisites
+Built with **Clean Architecture** principles:
+- **🔵 Domain Layer**: Pure business logic
+- **🟢 Application Layer**: Use cases and orchestration
+- **🔴 Infrastructure Layer**: Database, Git services, external APIs
+- **🟡 Interface Layer**: CLI tool + REST API + React UI
 
-- Go 1.22 or higher
-- MySQL 8.0 (or use the provided Docker Compose setup)
-- Git repositories to analyze
+## ✨ **Features**
 
-## Installation
+### **Git Analytics**
+- **📊 Repository Analysis**: Complete commit history extraction
+- **🔥 Code Hotspots**: Identify frequently changed files
+- **📈 Commit Trends**: Visualize development patterns over time
+- **👥 Contributor Insights**: Author-based analytics
+- **🎯 Interactive Dashboard**: Beautiful charts and visualizations
 
-### Using Docker Compose (Recommended)
+### **Multi-Interface Access**
+- **💻 CLI Tool**: Command-line interface for analysis
+- **🌐 REST API**: JSON API for integrations
+- **📱 React Dashboard**: Modern web interface
+- **🐳 Docker Ready**: Complete containerized setup
 
-1. Clone the repository
-2. Build and start the services:
-   ```bash
-   docker-compose up -d
-   ```
+## 🚀 **Quick Start**
 
-### Manual Installation
-
-1. Install dependencies:
-   ```bash
-   go mod tidy
-   ```
-
-2. Set up MySQL database using the provided schema:
-   ```bash
-   mysql -u root -p < schema.sql
-   ```
-
-3. Build the application:
-   ```bash
-   go build -o codeecho
-   ```
-
-## Usage
-
-### Database Connection
-
-By default, CodeEcho connects to MySQL using:
-```
-codeecho_user:codeecho_pass@tcp(localhost:3306)/codeecho_db
-```
-
-You can override this with the `--db-dsn` flag:
-```bash
-./codeecho --db-dsn "user:pass@tcp(host:port)/database" <command>
-```
-
-### Commands
-
-#### 1. Analyze a New Repository
-
-Analyze a Git repository for the first time and store its complete history:
+### **Complete Stack (Recommended)**
 
 ```bash
-./codeecho analyze --repo-path /path/to/git/repo --project-name "My Project"
+# Start everything with Docker
+docker-compose -f docker-compose.ddd.yml up --build -d
+
+# Access your applications:
+# - React Dashboard: http://localhost:3000
+# - API Health Check: http://localhost:8080/api/v1/health
+# - Database: localhost:3306
 ```
 
-**Flags:**
-- `--repo-path, -r`: Path to the Git repository (required)
-- `--project-name, -n`: Name for the project (required)
-
-**What it does:**
-1. Validates the repository path
-2. Creates a new project in the database
-3. Extracts complete commit history and file changes
-4. Stores all data in the database
-5. Updates the project with the latest commit hash
-
-#### 2. Update an Existing Project
-
-Update an existing project with new commits since the last analysis:
+### **Analyze Your First Repository**
 
 ```bash
-./codeecho update --project-id 1
+# Get into CLI container
+docker exec -it codeecho-cli sh
+
+# Analyze a repository
+./codeecho-cli analyze --project-name "MyProject" --repo-path /path/to/repo
+
+# Check hotspots
+./codeecho-cli hotspots --project-id 1
 ```
 
-**Flags:**
-- `--project-id, -i`: ID of the project to update (required)
+### **View Results**
+Open **http://localhost:3000** in your browser to explore the beautiful React dashboard!
 
-**What it does:**
-1. Retrieves the project from database
-2. Gets new commits since the last analyzed hash
-3. Stores new commits and file changes
-4. Updates the project's last analyzed hash
+## 🎯 **What's New in DDD Version**
+## 🎯 **What's New in DDD Version**
 
-#### 3. Analyze Code Hotspots
+### **🏛️ Clean Architecture**
+- **Domain-Driven Design**: Proper separation of business logic
+- **Dependency Inversion**: Infrastructure depends on domain, not vice versa
+- **Repository Pattern**: Clean data access abstractions
+- **Use Cases**: Clear business operations
 
-Identify code hotspots (frequently changed files) for a given project:
+### **🎨 Modern Frontend**
+- **React Dashboard**: Interactive charts and visualizations
+- **Responsive Design**: Works on all devices
+- **Real-time Data**: Live API integration
+- **Tailwind CSS**: Modern, utility-first styling
 
-```bash
-./codeecho hotspots --project-id 1
-```
+### **🐳 Multi-Service Architecture**
+- **API Service**: Go REST API server
+- **CLI Service**: Command-line analysis tool
+- **UI Service**: React development server
+- **Database Service**: MySQL with proper schema
 
-**Flags:**
-- `--project-id, -i`: ID of the project to analyze (required)
-
-**What it does:**
-1. Retrieves all commits and changes for the project
-2. Calculates change frequency for each file (number of unique commits that touched the file)
-3. Identifies files with change frequency > 10 as hotspots
-4. For hotspots, assigns a complexity score of 5 (placeholder for future complexity analysis)
-5. Returns a list of hotspot file paths with analysis recommendations
-
-### Examples
-
-```bash
-# Analyze a new project
-./codeecho analyze -r /Users/john/myproject -n "My Awesome Project"
-
-# Update project with ID 1
-./codeecho update -i 1
-
-# Analyze hotspots for project with ID 1
-./codeecho hotspots -i 1
-
-# Use custom database connection
-./codeecho --db-dsn "root:password@tcp(localhost:3306)/mydb" analyze -r /path/to/repo -n "Project"
-```
-
-## Database Schema
-
-The application uses three main tables:
-
-- **projects**: Stores project information and tracking data
-- **commits**: Stores commit details (hash, author, timestamp, message)
-- **changes**: Stores file-level changes (path, lines added/deleted)
-
-See `schema.sql` for the complete database structure.
-
-## Development
-
-### Project Structure
+## 📁 **Project Structure**
 
 ```
-├── main.go                      # CLI application and command definitions
-├── models.go                    # Database model structs
-├── storage.go                   # Database operations
-├── storage_adapter.go           # Adapter for analyzer package integration
-├── git.go                       # Git operations using go-git
-├── internal/
-│   └── analyzer/
-│       └── analyzer.go          # Hotspot analysis functionality
-├── schema.sql                   # MySQL database schema
-├── docker-compose.yml           # Docker services configuration
-├── Dockerfile                   # Go application container
-└── go.mod                       # Go module dependencies
+codeecho/
+├── 🔵 domain/              # Business entities, value objects, services
+├── 🟢 application/         # Use cases, ports, DTOs
+├── 🔴 infrastructure/      # Database, Git service, config
+├── 🟡 interfaces/          # CLI + API endpoints
+│   ├── cli/               # Command line interface
+│   └── api/               # REST API server
+├── 🎨 codeecho-ui/         # React dashboard
+├── 🐳 docker-compose.ddd.yml # Multi-service orchestration
+└── 📚 Documentation files
 ```
 
-### Key Dependencies
-
-- **cobra**: CLI framework
-- **go-git**: Git operations in pure Go
-- **go-sql-driver/mysql**: MySQL database driver
-
-### Adding New Features
-
-1. **New Commands**: Add to `main.go` using cobra command structure
-2. **Database Operations**: Extend `storage.go` with new methods
-3. **Git Operations**: Enhance `git.go` for additional Git functionality
-4. **Models**: Update `models.go` for new data structures
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Database Connection Failed**
-   - Ensure MySQL is running
-   - Check connection string format
-   - Verify user permissions
-
-2. **Repository Not Found**
-   - Ensure the path exists and is a valid Git repository
-   - Check file permissions
-
-3. **Build Issues**
-   - Run `go mod tidy` to ensure dependencies are correct
-   - Check Go version compatibility
-
-### Error Messages
-
-- `"not a Git repository"`: The specified path doesn't contain a `.git` directory
-- `"project with id X not found"`: Invalid project ID provided to update command
-- `"failed to connect to database"`: Database connection issues
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
-
-## License
-
-This project is licensed under the MIT License.# CodeEcho - Enhanced Version
+## 🔌 **API Endpoints**
