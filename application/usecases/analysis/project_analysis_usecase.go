@@ -7,6 +7,7 @@ import (
 	"codeecho/infrastructure/analyzer"
 	"codeecho/infrastructure/database"
 	"codeecho/infrastructure/git"
+	"codeecho/infrastructure/persistence/mysql"
 )
 
 // ProjectAnalysisUseCase handles project analysis operations
@@ -20,8 +21,12 @@ func NewProjectAnalysisUseCase(projectRepo repositories.ProjectRepository) *Proj
 	// Initialize git service
 	gitService := git.NewGitService()
 
-	// Initialize analyzer
-	analyzer := analyzer.NewRepositoryAnalyzer(gitService, projectRepo, database.DB)
+	// Initialize commit and change repositories
+	commitRepo := mysql.NewCommitRepository(database.DB)
+	changeRepo := mysql.NewChangeRepository(database.DB)
+
+	// Initialize analyzer with all required repositories
+	analyzer := analyzer.NewRepositoryAnalyzer(gitService, projectRepo, commitRepo, changeRepo, database.DB)
 
 	return &ProjectAnalysisUseCase{
 		analyzer:    analyzer,

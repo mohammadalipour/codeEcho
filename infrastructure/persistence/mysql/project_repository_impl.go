@@ -170,11 +170,41 @@ func (r *ProjectRepositoryImpl) Update(project *entities.Project) error {
 
 // Delete deletes a project by ID
 func (r *ProjectRepositoryImpl) Delete(id int) error {
-	query := `DELETE FROM projects WHERE id = ?`
+	// Start transaction to handle cascade deletion
+	tx, err := r.db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to start transaction: %w", err)
+	}
+	defer tx.Rollback()
 
-	_, err := r.db.Exec(query, id)
+	// Delete related changes first (due to foreign key constraints)
+	if _, err := tx.Exec("DELETE FROM changes WHERE commit_id IN (SELECT id FROM commits WHERE project_id = ?)", id); err != nil {
+		return fmt.Errorf("failed to delete project changes: %w", err)
+	}
+
+	// Delete related commits
+	if _, err := tx.Exec("DELETE FROM commits WHERE project_id = ?", id); err != nil {
+		return fmt.Errorf("failed to delete project commits: %w", err)
+	}
+
+	// Delete the project
+	result, err := tx.Exec("DELETE FROM projects WHERE id = ?", id)
 	if err != nil {
 		return fmt.Errorf("failed to delete project: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("project with ID %d not found", id)
+	}
+
+	// Commit transaction
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return nil

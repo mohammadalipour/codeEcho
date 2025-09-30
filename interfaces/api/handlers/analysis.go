@@ -50,9 +50,55 @@ func AnalyzeProject(c *gin.Context) {
 	}()
 
 	c.JSON(http.StatusAccepted, gin.H{
-		"message":   "Repository analysis started",
-		"projectId": id,
-		"repoPath":  request.RepoPath,
+		"message":    "Analysis started in background",
+		"project_id": id,
+	})
+}
+
+// RefreshProjectAnalysis refreshes the analysis for an existing project
+// This will pull new commits since the last analysis
+func RefreshProjectAnalysis(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid project ID"})
+		return
+	}
+
+	// Initialize dependencies
+	projectRepo := mysql.NewProjectRepository(database.DB)
+	analysisUseCase := analysis.NewProjectAnalysisUseCase(projectRepo)
+
+	// Get project to check if it exists and has been analyzed before
+	project, err := projectRepo.GetByID(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error":  "Project not found",
+			"detail": err.Error(),
+		})
+		return
+	}
+
+	if !project.IsAnalyzed() {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":  "Project has not been analyzed yet",
+			"detail": "Use the analyze endpoint first to perform initial analysis",
+		})
+		return
+	}
+
+	// Start refresh analysis in background
+	go func() {
+		if err := analysisUseCase.AnalyzeRepository(id, project.RepoPath); err != nil {
+			// Log error - in a real application, you might want to update a job status table
+			// log.Printf("Refresh analysis failed for project %d: %v", id, err)
+		}
+	}()
+
+	c.JSON(http.StatusAccepted, gin.H{
+		"message":         "Refresh analysis started in background",
+		"project_id":      id,
+		"last_analyzed":   project.LastAnalyzedHash.String(),
+		"repository_path": project.RepoPath,
 	})
 }
 

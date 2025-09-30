@@ -7,6 +7,7 @@ import ProjectDetail from './pages/ProjectDetail';
 import OverviewDashboard from './pages/OverviewDashboard';
 import HotspotTreemapDemo from './pages/HotspotTreemapDemo';
 import KnowledgeRiskDemo from './pages/KnowledgeRiskDemo';
+import AnalyzeRepository from './pages/AnalyzeRepository';
 import { ApiProvider } from './services/ApiContext';
 
 function App() {
@@ -22,6 +23,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/projects" element={<Projects />} />
+            <Route path="/projects/analyze" element={<AnalyzeRepository />} />
             <Route path="/projects/:id" element={<ProjectDetail />} />
             <Route path="/projects/:projectId/overview" element={<OverviewDashboard />} />
             <Route path="/projects/:id/hotspots" element={<HotspotTreemapDemo />} />

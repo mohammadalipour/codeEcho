@@ -2,6 +2,10 @@ package git
 
 import (
 	"fmt"
+	"net/url"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"codeecho/application/ports"
@@ -9,6 +13,7 @@ import (
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
+	"github.com/go-git/go-git/v5/plumbing/transport/http"
 )
 
 // GitServiceImpl implements the GitService port
@@ -19,8 +24,18 @@ func NewGitService() ports.GitService {
 	return &GitServiceImpl{}
 }
 
-// ValidateRepository checks if the path is a valid git repository
+// ValidateRepository checks if the path is a valid git repository or clones it if it's a remote URL
 func (gs *GitServiceImpl) ValidateRepository(repoPath string) error {
+	// Check if it's a remote URL
+	if gs.isRemoteURL(repoPath) {
+		// For remote URLs, we just validate the URL format
+		if !gs.isValidGitURL(repoPath) {
+			return fmt.Errorf("invalid git URL format: %s", repoPath)
+		}
+		return nil
+	}
+
+	// For local paths, check if it's a valid git repository
 	_, err := git.PlainOpen(repoPath)
 	if err != nil {
 		return fmt.Errorf("invalid git repository at %s: %w", repoPath, err)
@@ -28,14 +43,98 @@ func (gs *GitServiceImpl) ValidateRepository(repoPath string) error {
 	return nil
 }
 
+// isRemoteURL checks if the path is a remote Git URL
+func (gs *GitServiceImpl) isRemoteURL(path string) bool {
+	return strings.HasPrefix(path, "http://") ||
+		strings.HasPrefix(path, "https://") ||
+		strings.HasPrefix(path, "git@")
+}
+
+// isValidGitURL validates the format of a Git URL
+func (gs *GitServiceImpl) isValidGitURL(url string) bool {
+	// Basic validation for common Git URL patterns
+	if strings.Contains(url, "github.com") ||
+		strings.Contains(url, "gitlab.com") ||
+		strings.Contains(url, "bitbucket.org") ||
+		strings.HasSuffix(url, ".git") {
+		return true
+	}
+	return false
+}
+
+// CloneRepository clones a remote repository to a local temporary directory
+func (gs *GitServiceImpl) CloneRepository(repoURL string) (string, error) {
+	if !gs.isRemoteURL(repoURL) {
+		return repoURL, nil // Already a local path
+	}
+
+	// Create a temporary directory
+	tempDir := filepath.Join("/tmp", "codeecho-repos", gs.getRepoNameFromURL(repoURL))
+
+	// Remove existing directory if it exists
+	if _, err := os.Stat(tempDir); err == nil {
+		os.RemoveAll(tempDir)
+	}
+
+	// Create parent directories
+	os.MkdirAll(filepath.Dir(tempDir), 0755)
+
+	// Prepare clone options
+	cloneOptions := &git.CloneOptions{
+		URL:      repoURL,
+		Progress: os.Stdout,
+	}
+
+	// Check if URL contains authentication or if we need to add it
+	auth := gs.extractAuthFromURL(repoURL)
+	if auth != nil {
+		cloneOptions.Auth = auth
+		// Clean the URL to remove embedded credentials
+		cloneOptions.URL = gs.cleanURLFromAuth(repoURL)
+	}
+
+	// Clone the repository
+	_, err := git.PlainClone(tempDir, false, cloneOptions)
+
+	if err != nil {
+		return "", fmt.Errorf("failed to clone repository %s: %w", repoURL, err)
+	}
+
+	return tempDir, nil
+}
+
+// getRepoNameFromURL extracts repository name from URL
+func (gs *GitServiceImpl) getRepoNameFromURL(url string) string {
+	// Extract repo name from URL like https://github.com/user/repo.git -> repo
+	parts := strings.Split(url, "/")
+	if len(parts) > 0 {
+		name := parts[len(parts)-1]
+		name = strings.TrimSuffix(name, ".git")
+		return name
+	}
+	return "unknown-repo"
+}
+
 // GetCommits retrieves commits from a git repository
 func (gs *GitServiceImpl) GetCommits(repoPath string) ([]*ports.GitCommit, error) {
-	return gs.getCommitsFromHash(repoPath, "")
+	// Clone repository if it's a remote URL
+	localPath, err := gs.CloneRepository(repoPath)
+	if err != nil {
+		return nil, err
+	}
+
+	return gs.getCommitsFromHash(localPath, "")
 }
 
 // GetCommitsSince retrieves commits since a specific hash
 func (gs *GitServiceImpl) GetCommitsSince(repoPath string, sinceHash string) ([]*ports.GitCommit, error) {
-	return gs.getCommitsFromHash(repoPath, sinceHash)
+	// Clone repository if it's a remote URL
+	localPath, err := gs.CloneRepository(repoPath)
+	if err != nil {
+		return nil, err
+	}
+
+	return gs.getCommitsFromHash(localPath, sinceHash)
 }
 
 // getCommitsFromHash is a helper method to get commits from a specific hash or from the beginning
@@ -254,4 +353,41 @@ func (gs *GitServiceImpl) countLinesInString(content string) int {
 		lines++
 	}
 	return lines
+}
+
+// extractAuthFromURL extracts authentication information from URL
+func (gs *GitServiceImpl) extractAuthFromURL(repoURL string) *http.BasicAuth {
+	parsedURL, err := url.Parse(repoURL)
+	if err != nil {
+		return nil
+	}
+
+	if parsedURL.User != nil {
+		username := parsedURL.User.Username()
+		password, _ := parsedURL.User.Password()
+
+		if username != "" {
+			return &http.BasicAuth{
+				Username: username,
+				Password: password,
+			}
+		}
+	}
+
+	return nil
+}
+
+// cleanURLFromAuth removes authentication information from URL
+func (gs *GitServiceImpl) cleanURLFromAuth(repoURL string) string {
+	parsedURL, err := url.Parse(repoURL)
+	if err != nil {
+		return repoURL
+	}
+
+	if parsedURL.User != nil {
+		parsedURL.User = nil
+		return parsedURL.String()
+	}
+
+	return repoURL
 }

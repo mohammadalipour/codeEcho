@@ -63,8 +63,9 @@ func GetProjects(c *gin.Context) {
 // CreateProject creates a new project
 func CreateProject(c *gin.Context) {
 	var request struct {
-		Name     string `json:"name" binding:"required"`
-		RepoPath string `json:"repoPath" binding:"required"`
+		Name        string `json:"name" binding:"required"`
+		RepoPath    string `json:"repo_path" binding:"required"`
+		Description string `json:"description"`
 	}
 
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -153,10 +154,61 @@ func UpdateProject(c *gin.Context) {
 		return
 	}
 
-	// TODO: Implement using use cases
-	c.JSON(http.StatusNotImplemented, gin.H{
-		"project_id": id,
-		"error":      "UpdateProject not yet implemented in DDD structure",
+	// Parse request body
+	var request struct {
+		Name     string `json:"name" binding:"required"`
+		RepoPath string `json:"repo_path" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":  "Invalid request data",
+			"detail": err.Error(),
+		})
+		return
+	}
+
+	// Initialize dependencies
+	projectRepo := mysql.NewProjectRepository(database.DB)
+	projectUseCase := project.NewProjectUseCase(projectRepo)
+
+	// Get existing project
+	existingProject, err := projectUseCase.GetProjectByID(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error":  "Project not found",
+			"detail": err.Error(),
+		})
+		return
+	}
+
+	// Update project fields
+	existingProject.Name = request.Name
+	existingProject.RepoPath = request.RepoPath
+
+	// Update project
+	if err := projectUseCase.UpdateProject(existingProject); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":  "Failed to update project",
+			"detail": err.Error(),
+		})
+		return
+	}
+
+	// Return updated project
+	var lastAnalyzedHash *string
+	if existingProject.LastAnalyzedHash != nil {
+		hash := existingProject.LastAnalyzedHash.String()
+		lastAnalyzedHash = &hash
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"id":                 existingProject.ID,
+		"name":               existingProject.Name,
+		"repo_path":          existingProject.RepoPath,
+		"last_analyzed_hash": lastAnalyzedHash,
+		"created_at":         existingProject.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		"is_analyzed":        existingProject.IsAnalyzed(),
 	})
 }
 
@@ -168,9 +220,32 @@ func DeleteProject(c *gin.Context) {
 		return
 	}
 
-	// TODO: Implement using use cases
-	c.JSON(http.StatusNotImplemented, gin.H{
+	// Initialize dependencies
+	projectRepo := mysql.NewProjectRepository(database.DB)
+	projectUseCase := project.NewProjectUseCase(projectRepo)
+
+	// Check if project exists before deletion
+	existingProject, err := projectUseCase.GetProjectByID(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error":  "Project not found",
+			"detail": err.Error(),
+		})
+		return
+	}
+
+	// Delete project (this will cascade delete related commits and changes)
+	if err := projectUseCase.DeleteProject(id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":  "Failed to delete project",
+			"detail": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":    "Project deleted successfully",
 		"project_id": id,
-		"error":      "DeleteProject not yet implemented in DDD structure",
+		"name":       existingProject.Name,
 	})
 }

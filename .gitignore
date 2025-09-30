@@ -48,6 +48,10 @@ vendor/
 # Environment files
 .env
 .env.local
+
+# Test files and directories
+test-api
+repositories/
 .env.*.local
 
 # Docker volumes and data

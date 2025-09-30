@@ -19,6 +19,9 @@ func main() {
 	}
 	defer database.CloseDB()
 
+	// Initialize upload handler
+	uploadHandler := handlers.NewUploadProjectHandler("/tmp/uploaded_projects")
+
 	// Create Gin router
 	router := gin.Default()
 
@@ -55,7 +58,11 @@ func main() {
 
 		// Project Analysis
 		api.POST("/projects/:id/analyze", handlers.AnalyzeProject)
+		api.POST("/projects/:id/refresh", handlers.RefreshProjectAnalysis)
 		api.GET("/projects/:id/analysis-status", handlers.GetProjectAnalysisStatus)
+
+		// Project Upload
+		api.POST("/projects/:id/upload", uploadHandler.UploadProject)
 	}
 
 	// Start server

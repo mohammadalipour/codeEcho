@@ -98,6 +98,68 @@ export const ApiProvider = ({ children }) => {
       }
     },
 
+    async updateProject(id, projectData) {
+      try {
+        dispatch({ type: 'SET_LOADING', payload: true });
+        const response = await api.put(`/projects/${id}`, projectData);
+        // Refresh projects list after update
+        await this.getProjects();
+        return response.data;
+      } catch (error) {
+        dispatch({ type: 'SET_ERROR', payload: error.message });
+        throw error;
+      }
+    },
+
+    async deleteProject(id) {
+      try {
+        dispatch({ type: 'SET_LOADING', payload: true });
+        const response = await api.delete(`/projects/${id}`);
+        // Refresh projects list after deletion
+        await this.getProjects();
+        return response.data;
+      } catch (error) {
+        dispatch({ type: 'SET_ERROR', payload: error.message });
+        throw error;
+      }
+    },
+
+    async analyzeProject(projectId, repoPath) {
+      try {
+        dispatch({ type: 'SET_LOADING', payload: true });
+        const response = await api.post(`/projects/${projectId}/analyze`, {
+          repoPath: repoPath
+        });
+        return response.data;
+      } catch (error) {
+        dispatch({ type: 'SET_ERROR', payload: error.message });
+        throw error;
+      }
+    },
+
+    async refreshProjectAnalysis(projectId) {
+      try {
+        dispatch({ type: 'SET_LOADING', payload: true });
+        const response = await api.post(`/projects/${projectId}/refresh`);
+        // Refresh projects list to get updated stats
+        await this.getProjects();
+        return response.data;
+      } catch (error) {
+        dispatch({ type: 'SET_ERROR', payload: error.message });
+        throw error;
+      }
+    },
+
+    async getProjectAnalysisStatus(projectId) {
+      try {
+        const response = await api.get(`/projects/${projectId}/analysis-status`);
+        return response.data;
+      } catch (error) {
+        dispatch({ type: 'SET_ERROR', payload: error.message });
+        throw error;
+      }
+    },
+
     // Analytics
     async getProjectCommits(projectId) {
       try {

@@ -1,10 +1,12 @@
 import React, { useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useApi } from '../services/ApiContext';
 import { 
   FolderIcon, 
   FireIcon, 
   CodeBracketIcon, 
-  UserGroupIcon 
+  UserGroupIcon,
+  PlusIcon
 } from '@heroicons/react/24/outline';
 
 const Dashboard = () => {
@@ -120,11 +122,23 @@ const Dashboard = () => {
           <div className="bg-blue-50 rounded-lg p-4">
             <h3 className="text-sm font-medium text-blue-900 mb-2">1. Analyze a Repository</h3>
             <p className="text-sm text-blue-700 mb-3">
-              Use the CLI tool to analyze your first Git repository and populate the database.
+              Add a new repository for analysis using our web interface or CLI tool.
             </p>
-            <code className="block bg-blue-100 text-blue-800 p-2 rounded text-xs">
-              ./codeecho-cli analyze --project-name "MyProject" --repo-path /path/to/repo
-            </code>
+            <div className="space-y-2">
+              <Link 
+                to="/projects/analyze"
+                className="inline-flex items-center text-sm font-medium text-blue-600 hover:text-blue-500 bg-white px-3 py-1 rounded border border-blue-200"
+              >
+                <PlusIcon className="h-4 w-4 mr-1" />
+                Analyze Repository
+              </Link>
+              <details className="mt-2">
+                <summary className="text-xs text-blue-600 cursor-pointer">Or use CLI</summary>
+                <code className="block bg-blue-100 text-blue-800 p-2 rounded text-xs mt-1">
+                  ./codeecho-cli analyze --project-name "MyProject" --repo-path /path/to/repo
+                </code>
+              </details>
+            </div>
           </div>
           
           <div className="bg-green-50 rounded-lg p-4">
