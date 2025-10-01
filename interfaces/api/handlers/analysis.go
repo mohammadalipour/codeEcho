@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 	"strconv"
 
@@ -43,9 +44,13 @@ func AnalyzeProject(c *gin.Context) {
 
 	// Start analysis in background (this can take a while)
 	go func() {
+		log.Printf("Starting analysis of repository: %d at path: %s", id, request.RepoPath)
+
 		if err := analysisUseCase.AnalyzeRepository(id, request.RepoPath); err != nil {
-			// Log error - in a real application, you might want to update a job status table
-			// log.Printf("Analysis failed for project %d: %v", id, err)
+			log.Printf("Analysis failed for project %d: %v", id, err)
+			// TODO: Update project status to indicate failure
+		} else {
+			log.Printf("Analysis completed successfully for project %d", id)
 		}
 	}()
 

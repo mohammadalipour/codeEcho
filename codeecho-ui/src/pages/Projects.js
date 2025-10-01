@@ -9,7 +9,8 @@ import {
   PencilIcon,
   TrashIcon,
   XMarkIcon,
-  ArrowPathIcon
+  ArrowPathIcon,
+  ClockIcon
 } from '@heroicons/react/24/outline';
 import { format } from 'date-fns';
 
@@ -289,9 +290,16 @@ const ProjectCard = ({ project, stats, onEdit, onDelete, onRefresh }) => {
               <span className="text-gray-500 ml-1">changes</span>
             </div>
           </div>
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-            {project.is_analyzed ? 'Active' : 'Pending'}
-          </span>
+          {project.is_analyzed ? (
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+              Active
+            </span>
+          ) : (
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+              <ClockIcon className="h-3 w-3 mr-1 animate-spin" />
+              Analyzing...
+            </span>
+          )}
         </div>
       </Link>
 

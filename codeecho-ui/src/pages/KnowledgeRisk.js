@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { useApi } from '../services/ApiContext';
 import KnowledgeRiskView from '../components/KnowledgeRiskView';
 
-const KnowledgeRiskDemo = () => {
+const KnowledgeRisk = () => {
   const { id } = useParams();
   const { api } = useApi();
   const [project, setProject] = useState(null);
@@ -62,6 +62,21 @@ const KnowledgeRiskDemo = () => {
             : 'Analyze file ownership patterns and identify knowledge concentration risks'
           }
         </p>
+        
+        {/* Knowledge Ownership Definition */}
+        <div className="mt-4 bg-purple-50 border border-purple-200 rounded-md p-4">
+          <div className="flex">
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-purple-800">What is Knowledge Ownership?</h3>
+              <div className="mt-2 text-sm text-purple-700">
+                <p>
+                  The measure of how much knowledge about a code area is concentrated in a single developer (high ownership) 
+                  or spread across many developers (low ownership). Both extremes can be problematic.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       {error && (
@@ -116,4 +131,4 @@ const KnowledgeRiskDemo = () => {
   );
 };
 
-export default KnowledgeRiskDemo;
+export default KnowledgeRisk;

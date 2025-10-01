@@ -5,8 +5,8 @@ import Dashboard from './pages/Dashboard';
 import Projects from './pages/Projects';
 import ProjectDetail from './pages/ProjectDetail';
 import OverviewDashboard from './pages/OverviewDashboard';
-import HotspotTreemapDemo from './pages/HotspotTreemapDemo';
-import KnowledgeRiskDemo from './pages/KnowledgeRiskDemo';
+import HotspotTreemap from './pages/HotspotTreemap';
+import KnowledgeRisk from './pages/KnowledgeRisk';
 import AnalyzeRepository from './pages/AnalyzeRepository';
 import { ApiProvider } from './services/ApiContext';
 
@@ -26,9 +26,9 @@ function App() {
             <Route path="/projects/analyze" element={<AnalyzeRepository />} />
             <Route path="/projects/:id" element={<ProjectDetail />} />
             <Route path="/projects/:projectId/overview" element={<OverviewDashboard />} />
-            <Route path="/projects/:id/hotspots" element={<HotspotTreemapDemo />} />
-            <Route path="/projects/:id/knowledge-risk" element={<KnowledgeRiskDemo />} />
-            <Route path="/knowledge-risk" element={<KnowledgeRiskDemo />} />
+            <Route path="/projects/:id/hotspots" element={<HotspotTreemap />} />
+            <Route path="/projects/:id/knowledge-risk" element={<KnowledgeRisk />} />
+            <Route path="/knowledge-risk" element={<KnowledgeRisk />} />
           </Routes>
         </Layout>
       </Router>

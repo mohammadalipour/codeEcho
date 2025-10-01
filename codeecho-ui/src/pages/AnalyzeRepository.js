@@ -134,7 +134,7 @@ const AnalyzeRepository = () => {
       const project = await api.createProject(projectData);
       setProjectId(project.id);
       
-      // Step 2: Handle upload or clone
+      // Step 2: Handle upload or start analysis immediately  
       if (inputMethod === 'upload') {
         setProgress({
           message: 'Uploading project files...',
@@ -143,33 +143,24 @@ const AnalyzeRepository = () => {
         
         const uploadResult = await uploadProjectFile(project.id, selectedFile);
         
-        // Step 3: Start analysis with uploaded project path
-        setCurrentStep('analyzing');
-        setProgress({
-          message: 'Starting repository analysis...',
-          details: 'This may take a few minutes depending on repository size'
-        });
-
+        // Start background analysis for upload
         await api.analyzeProject(project.id, uploadResult.projectPath);
       } else {
-        // Step 3: Start analysis with remote URL
-        setCurrentStep('analyzing');
-        setProgress({
-          message: 'Starting repository analysis...',
-          details: 'This may take a few minutes depending on repository size'
-        });
-
+        // Start background analysis for URL
         await api.analyzeProject(project.id, formData.repoPath.trim());
       }
       
-      // Step 4: Monitor progress (simplified - in real app you'd poll the status)
+      // Step 3: Immediately redirect to dashboard - no waiting!
+      setCurrentStep('complete');
+      setProgress({
+        message: 'Project created and analysis started!',
+        details: 'Analysis is running in the background. You can view progress on the dashboard.'
+      });
+      
+      // Auto-redirect to dashboard after 2 seconds
       setTimeout(() => {
-        setCurrentStep('complete');
-        setProgress({
-          message: 'Analysis completed successfully!',
-          details: 'Repository has been analyzed and data is now available'
-        });
-      }, 3000); // Simulated delay
+        navigate('/projects');
+      }, 2000);
 
     } catch (err) {
       setError(err.message || 'Analysis failed. Please check the repository and try again.');

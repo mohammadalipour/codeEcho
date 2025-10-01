@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useApi } from '../services/ApiContext';
-import HotspotTreemap from '../components/HotspotTreemap';
+import HotspotTreemapComponent from '../components/HotspotTreemap';
 
-const HotspotTreemapDemo = () => {
+const HotspotTreemap = () => {
   const { id } = useParams();
   const { api } = useApi();
   const [project, setProject] = useState(null);
@@ -390,9 +390,9 @@ const HotspotTreemapDemo = () => {
   // Use real data if available, otherwise fall back to mock data
   const treeMapData = transformHotspotsToTreemap(hotspotsData);
   
-  console.log('HotspotTreemapDemo - hotspotsData length:', hotspotsData.length);
-  console.log('HotspotTreemapDemo - using transformed data');
-  console.log('HotspotTreemapDemo - final treeMapData:', treeMapData);
+  console.log('HotspotTreemap - hotspotsData length:', hotspotsData.length);
+  console.log('HotspotTreemap - using transformed data');
+  console.log('HotspotTreemap - final treeMapData:', treeMapData);
 
   // Ensure we always have some data to display
   const finalTreeMapData = treeMapData && treeMapData.length > 0 ? treeMapData : getMockProjectData();
@@ -406,6 +406,22 @@ const HotspotTreemapDemo = () => {
         <p className="mt-1 text-sm text-gray-500">
           Interactive visualization of project structure and risk analysis
         </p>
+        
+        {/* Hotspot Definition */}
+        <div className="mt-4 bg-blue-50 border border-blue-200 rounded-md p-4">
+          <div className="flex">
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-blue-800">What are Code Hotspots?</h3>
+              <div className="mt-2 text-sm text-blue-700">
+                <p>
+                  Files, modules, or classes with both high complexity and frequent changes. 
+                  These are prime candidates for refactoring because they are both risky and business-critical.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+        
         {project && !project.is_analyzed && (
           <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-md p-4">
             <div className="flex">
@@ -420,7 +436,7 @@ const HotspotTreemapDemo = () => {
         )}
       </div>
 
-      <HotspotTreemap 
+      <HotspotTreemapComponent 
         data={finalTreeMapData}
         onNodeClick={handleNodeClick}
         className="mb-8"
@@ -442,4 +458,4 @@ const HotspotTreemapDemo = () => {
   );
 };
 
-export default HotspotTreemapDemo;
+export default HotspotTreemap;
