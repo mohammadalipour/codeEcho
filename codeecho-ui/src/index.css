@@ -27,3 +27,88 @@
 .anim-bump {
   animation: number-bump 420ms cubic-bezier(.34,1.56,.64,1);
 }
+
+/* Enhanced project card animations */
+@keyframes progress-indeterminate {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
+
+.animate-progress-indeterminate {
+  animation: progress-indeterminate 2s infinite linear;
+}
+
+/* Success animations for completion state */
+@keyframes success-ring {
+  0% { transform: scale(0.8); opacity: 0.8; }
+  50% { transform: scale(1.1); opacity: 0.3; }
+  100% { transform: scale(1.4); opacity: 0; }
+}
+
+.animate-success-ring {
+  animation: success-ring 1.5s ease-out infinite;
+}
+
+@keyframes success-checkmark {
+  0% { transform: scale(0); opacity: 0; }
+  50% { transform: scale(1.1); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.animate-success-checkmark {
+  animation: success-checkmark 0.6s ease-out forwards;
+}
+
+@keyframes success-fade-in {
+  0% { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.animate-success-fade-in {
+  animation: success-fade-in 0.8s ease-out forwards;
+  animation-delay: 0.3s;
+  opacity: 0;
+}
+
+@keyframes success-slide-up {
+  0% { opacity: 0; transform: translateY(20px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.animate-success-slide-up {
+  animation: success-slide-up 0.8s ease-out forwards;
+  animation-delay: 0.6s;
+  opacity: 0;
+}
+
+@keyframes success-particle {
+  0% { transform: scale(0) translateY(0); opacity: 1; }
+  50% { transform: scale(1) translateY(-20px); opacity: 0.8; }
+  100% { transform: scale(0) translateY(-40px); opacity: 0; }
+}
+
+.animate-success-particle {
+  animation: success-particle 1.2s ease-out infinite;
+}
+
+/* Enhanced hover effects for project cards */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-6px); }
+}
+
+.hover-float:hover {
+  animation: float 2s ease-in-out infinite;
+}
+
+/* Loading state shimmer effect */
+@keyframes shimmer {
+  0% { background-position: -1000px 0; }
+  100% { background-position: 1000px 0; }
+}
+
+.shimmer {
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+  background-size: 1000px 100%;
+  animation: shimmer 2s infinite;
+}

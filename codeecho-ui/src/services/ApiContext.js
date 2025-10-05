@@ -10,6 +10,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  validateStatus: status => status < 500, // Handle 4xx errors in catch block
 });
 
 // API Context
@@ -91,6 +92,11 @@ export const ApiProvider = ({ children }) => {
       try {
         dispatch({ type: 'SET_LOADING', payload: true });
         const response = await api.post('/projects', projectData);
+        
+        if (!response.data || response.status >= 400) {
+          throw new Error(response.data?.error || 'Failed to create project');
+        }
+
         return response.data;
       } catch (error) {
         dispatch({ type: 'SET_ERROR', payload: error.message });
@@ -149,6 +155,19 @@ export const ApiProvider = ({ children }) => {
         throw error;
       }
     },
+    
+    async cancelAnalysis(projectId) {
+      try {
+        dispatch({ type: 'SET_LOADING', payload: true });
+        const response = await api.post(`/projects/${projectId}/cancel-analysis`);
+        return response.data;
+      } catch (error) {
+        dispatch({ type: 'SET_ERROR', payload: error.message });
+        throw error;
+      } finally {
+        dispatch({ type: 'SET_LOADING', payload: false });
+      }
+    },
 
     async getProjectAnalysisStatus(projectId) {
       try {
@@ -183,7 +202,7 @@ export const ApiProvider = ({ children }) => {
       }
     },
 
-    async getProjectHotspots(projectId, startDate = null, endDate = null, repository = null, path = null, metric = null, minComplexity = null, minChanges = null, fileTypes = null, riskLevel = null, { noCache = false } = {}) {
+    async getProjectHotspots(projectId, startDate = null, endDate = null, repository = null, path = null, metric = null, minComplexity = null, minChanges = null, fileTypes = null, riskLevel = null, page = null, limit = null, { noCache = false } = {}) {
       try {
         let url = `/projects/${projectId}/hotspots`;
         const params = new URLSearchParams();
@@ -197,11 +216,13 @@ export const ApiProvider = ({ children }) => {
         if (minChanges !== null && minChanges !== undefined && Number(minChanges) > 0) params.append('minChanges', String(minChanges));
         if (fileTypes && Array.isArray(fileTypes) && fileTypes.length > 0) params.append('fileTypes', fileTypes.join(','));
         if (riskLevel && riskLevel !== 'all') params.append('riskLevel', riskLevel);
+        if (page !== null && page !== undefined) params.append('page', String(page));
+        if (limit !== null && limit !== undefined) params.append('limit', String(limit));
         
         if (params.toString()) url += `?${params.toString()}`;
         
         const sep = params.toString() ? '&' : '?';
-        if (noCache) url += `${params.toString() ? '' : '?'}${params.toString() ? '' : ''}nocache=1`;
+        if (noCache) url += `${params.toString() ? '&' : '?'}nocache=1`;
         else if (params.toString()) { /* already appended */ }
         const response = await api.get(url);
         return response.data;
@@ -268,6 +289,34 @@ export const ApiProvider = ({ children }) => {
         const response = await api.get('/dashboard/stats');
         dispatch({ type: 'SET_DASHBOARD_STATS', payload: response.data });
         return response.data;
+      } catch (error) {
+        dispatch({ type: 'SET_ERROR', payload: error.message });
+        throw error;
+      }
+    },
+
+    // Temporal Coupling (minShared removed; optional date range)
+    async getProjectTemporalCoupling(projectId, { limit = 200, startDate, endDate, minSharedCommits, minCouplingScore, fileTypes } = {}) {
+      try {
+        const params = new URLSearchParams();
+        if (limit) params.append('limit', String(limit));
+        if (startDate) params.append('startDate', startDate);
+        if (endDate) params.append('endDate', endDate);
+        if (minSharedCommits !== undefined) params.append('minSharedCommits', String(minSharedCommits));
+        if (minCouplingScore !== undefined) params.append('minCouplingScore', String(minCouplingScore));
+        if (fileTypes) params.append('fileTypes', fileTypes);
+        const response = await api.get(`/projects/${projectId}/temporal-coupling?${params.toString()}`);
+        return response.data; // { project_id, temporal_coupling: [...], params: {...} }
+      } catch (error) {
+        dispatch({ type: 'SET_ERROR', payload: error.message });
+        throw error;
+      }
+    },
+
+    async getProjectFileTypes(projectId) {
+      try {
+        const response = await api.get(`/projects/${projectId}/file-types`);
+        return response.data; // { project_id, file_types: [...] }
       } catch (error) {
         dispatch({ type: 'SET_ERROR', payload: error.message });
         throw error;

@@ -10,8 +10,6 @@ import {
 const navigation = [
   { name: 'Dashboard', href: '/', icon: HomeIcon },
   { name: 'Projects', href: '/projects', icon: FolderIcon },
-  // Added Analyze Repository direct link for easier access to analyze page
-  { name: 'Analyze', href: '/projects/analyze', icon: FolderIcon },
 ];
 
 const Layout = ({ children }) => {

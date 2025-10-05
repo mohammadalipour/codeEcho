@@ -3,6 +3,7 @@ package mysql
 import (
 	"database/sql"
 	"fmt"
+	"log"
 
 	"codeecho/domain/entities"
 	"codeecho/domain/repositories"
@@ -225,12 +226,13 @@ func (r *ProjectRepositoryImpl) UpdateLastAnalyzedHash(projectID int, hash strin
 // modelToEntity converts a database model to a domain entity
 func (r *ProjectRepositoryImpl) modelToEntity(model *models.ProjectModel) (*entities.Project, error) {
 	var lastAnalyzedHash *values.GitHash
-	if model.LastAnalyzedHash != nil {
-		hash, err := values.NewGitHash(*model.LastAnalyzedHash)
-		if err != nil {
-			return nil, fmt.Errorf("invalid git hash in database: %w", err)
+	if model.LastAnalyzedHash != nil && *model.LastAnalyzedHash != "" {
+		if hash, err := values.NewGitHash(*model.LastAnalyzedHash); err != nil {
+			// Log and continue instead of failing whole request
+			log.Printf("warning: ignoring invalid git hash for project %d: %s (%v)", model.ID, *model.LastAnalyzedHash, err)
+		} else {
+			lastAnalyzedHash = hash
 		}
-		lastAnalyzedHash = hash
 	}
 
 	return &entities.Project{

@@ -11,7 +11,8 @@ import {
   TrashIcon,
   XMarkIcon,
   ArrowPathIcon,
-  ClockIcon
+  ClockIcon,
+  CheckCircleIcon
 } from '@heroicons/react/24/outline';
 import { format } from 'date-fns';
 
@@ -21,12 +22,16 @@ const Projects = () => {
   const [editingProject, setEditingProject] = useState(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isCancelAnalysisModalOpen, setIsCancelAnalysisModalOpen] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState(null);
+  const [projectToCancel, setProjectToCancel] = useState(null);
   const [analyzingProjects, setAnalyzingProjects] = useState(new Set());
   const [analysisStatus, setAnalysisStatus] = useState({}); // { projectId: { totalCommits, totalFiles, lastCommitDate } }
   const [refreshingProjects, setRefreshingProjects] = useState(new Set());
   const [analysisStartTimes, setAnalysisStartTimes] = useState({}); // { projectId: timestamp }
   const [nowTick, setNowTick] = useState(Date.now());
+  const [notifications, setNotifications] = useState([]);
+  const notificationTimeoutRef = useRef(null);
   const intervalRef = useRef(null); // project list polling
   const statusIntervalRef = useRef(null); // per-project status polling
   const elapsedIntervalRef = useRef(null); // elapsed time ticker
@@ -87,15 +92,75 @@ const Projects = () => {
         for (const id of prev) { if (!currentlyAnalyzing.has(id)) { identical = false; break; } }
         if (identical) return prev;
       }
+      
+      // When projects have completed analysis, clean up the refreshing state
+      if (prev.size > currentlyAnalyzing.size) {
+        const completed = [...prev].filter(id => !currentlyAnalyzing.has(id));
+        
+        // Show notifications for completed analyses
+        completed.forEach(id => {
+          const project = projects.find(p => p.id === id);
+          if (project) {
+            addNotification({
+              type: 'success',
+              message: `Analysis of "${project.name}" completed successfully!`,
+              duration: 5000
+            });
+          }
+        });
+        
+        // Clean up any refreshingProjects entries for completed analyses
+        setRefreshingProjects(refreshing => {
+          if (refreshing.size === 0) return refreshing;
+          const newRefreshing = new Set(refreshing);
+          completed.forEach(id => newRefreshing.delete(id));
+          return newRefreshing;
+        });
+      }
+      
       return currentlyAnalyzing;
+    });
+
+    // Check for stuck analyses (over 5 minutes)
+    const now = Date.now();
+    Object.entries(analysisStartTimes).forEach(([id, startTime]) => {
+      const elapsedMs = now - startTime;
+      const MAX_ANALYSIS_TIME_MS = 5 * 60 * 1000; // 5 minutes
+      
+      if (elapsedMs > MAX_ANALYSIS_TIME_MS && currentlyAnalyzing.has(parseInt(id, 10))) {
+        console.warn(`Analysis for project ${id} has been running for ${Math.floor(elapsedMs/60000)} minutes. Refreshing project data.`);
+        api.getProjects().catch(console.error);
+      }
     });
 
     const hasAnalyzing = currentlyAnalyzing.size > 0;
 
-    // Project list polling
+    // Project list polling with auto-refresh for analyzing projects
     if (hasAnalyzing && !intervalRef.current) {
       intervalRef.current = setInterval(async () => {
-        try { await api.getProjects(); } catch { /* ignore */ }
+        try { 
+          await api.getProjects();
+          
+          // Auto-refresh analyzing projects to update their stats
+          Array.from(currentlyAnalyzing).forEach(projectId => {
+            const project = projects.find(p => p.id === projectId);
+            if (project) {
+              setRefreshingProjects(prev => new Set(prev).add(projectId));
+              api.getProjectStats(projectId, { noCache: true })
+                .then(() => {
+                  // Keep the refreshing state while analysis is ongoing
+                  if (project.is_analyzed) {
+                    setRefreshingProjects(prev => {
+                      const next = new Set(prev);
+                      next.delete(projectId);
+                      return next;
+                    });
+                  }
+                })
+                .catch(() => {});
+            }
+          });
+        } catch { /* ignore */ }
       }, 4000);
     } else if (!hasAnalyzing && intervalRef.current) {
       clearInterval(intervalRef.current); intervalRef.current = null;
@@ -168,9 +233,78 @@ const Projects = () => {
     setProjectToDelete(project);
     setIsDeleteModalOpen(true);
   };
+  
+  const handleRetryAnalysis = () => {
+    api.getProjects().catch(console.error);
+  };
+  
+  const handleCancelAnalysis = (projectId) => {
+    // Find the project by ID
+    const projectToCancel = projects.find(p => p.id === projectId);
+    setProjectToCancel(projectToCancel);
+    setIsCancelAnalysisModalOpen(true);
+  };
+  
+  // Notification management
+  const addNotification = (notification) => {
+    const id = Date.now();
+    const newNotification = { id, ...notification };
+    setNotifications(prev => [...prev, newNotification]);
+    
+    // Auto-remove notification after duration
+    if (notification.duration) {
+      setTimeout(() => {
+        removeNotification(id);
+      }, notification.duration);
+    }
+  };
+  
+  const removeNotification = (id) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  };
+
+  const confirmCancelAnalysis = async () => {
+    try {
+      if (!projectToCancel) return;
+      
+      const projectName = projectToCancel.name;
+      await api.cancelAnalysis(projectToCancel.id);
+      // After cancellation, delete the project as well
+      await api.deleteProject(projectToCancel.id);
+      // Refresh the project list
+      await api.getProjects();
+      // Close the modal
+      setIsCancelAnalysisModalOpen(false);
+      setProjectToCancel(null);
+      
+      // Show notification
+      addNotification({
+        type: 'info',
+        message: `Analysis of "${projectName}" was cancelled and the project was deleted.`,
+        duration: 5000
+      });
+    } catch (error) {
+      console.error('Failed to cancel analysis:', error);
+      setIsCancelAnalysisModalOpen(false);
+      
+      // Show error notification
+      addNotification({
+        type: 'error',
+        message: `Failed to cancel analysis: ${error.message || 'Unknown error'}`,
+        duration: 5000
+      });
+    }
+  };
 
   const handleRefreshProject = async (project) => {
     try {
+      // Show notification that refresh is starting
+      addNotification({
+        type: 'info',
+        message: `Refreshing project "${project.name}"...`,
+        duration: 3000
+      });
+      
       // Optimistically mark as refreshing
       setRefreshingProjects(prev => new Set(prev).add(project.id));
       const baselineStats = statsByProject[project.id];
@@ -201,6 +335,21 @@ const Projects = () => {
             });
             // Force projects list refresh to ensure any last_analyzed_hash update is visible
             api.getProjects().catch(() => {});
+            
+            // Show success notification
+            if (changed) {
+              addNotification({
+                type: 'success',
+                message: `Project "${project.name}" refreshed with new data!`,
+                duration: 5000
+              });
+            } else {
+              addNotification({
+                type: 'info',
+                message: `No new changes found for "${project.name}".`,
+                duration: 5000
+              });
+            }
           }
         } catch (e) {
           if (attempts >= maxAttempts) {
@@ -209,6 +358,13 @@ const Projects = () => {
               const next = new Set(prev);
               next.delete(project.id);
               return next;
+            });
+            
+            // Show timeout notification
+            addNotification({
+              type: 'info',
+              message: `Refresh timeout for "${project.name}". No changes detected.`,
+              duration: 5000
             });
           }
         }
@@ -220,17 +376,39 @@ const Projects = () => {
         next.delete(project.id);
         return next;
       });
+      
+      // Show error notification
+      addNotification({
+        type: 'error',
+        message: `Failed to refresh project "${project.name}": ${error.message || 'Unknown error'}`,
+        duration: 5000
+      });
     }
   };
 
   const confirmDeleteProject = async () => {
     if (projectToDelete) {
       try {
+        const projectName = projectToDelete.name;
         await api.deleteProject(projectToDelete.id);
         setIsDeleteModalOpen(false);
         setProjectToDelete(null);
+        
+        // Show success notification
+        addNotification({
+          type: 'success',
+          message: `Project "${projectName}" was successfully deleted.`,
+          duration: 5000
+        });
       } catch (error) {
         console.error('Error deleting project:', error);
+        
+        // Show error notification
+        addNotification({
+          type: 'error',
+          message: `Failed to delete project: ${error.message || 'Unknown error'}`,
+          duration: 5000
+        });
       }
     }
   };
@@ -243,8 +421,22 @@ const Projects = () => {
       });
       setIsEditModalOpen(false);
       setEditingProject(null);
+      
+      // Show success notification
+      addNotification({
+        type: 'success',
+        message: `Project "${updatedProject.name}" was successfully updated.`,
+        duration: 5000
+      });
     } catch (error) {
       console.error('Error updating project:', error);
+      
+      // Show error notification
+      addNotification({
+        type: 'error',
+        message: `Failed to update project: ${error.message || 'Unknown error'}`,
+        duration: 5000
+      });
     }
   };
 
@@ -315,6 +507,8 @@ const Projects = () => {
               onEdit={handleEditProject}
               onDelete={handleDeleteProject}
               onRefresh={handleRefreshProject}
+              onRetryAnalysis={handleRetryAnalysis}
+              onCancelAnalysis={handleCancelAnalysis}
               refreshingProjects={refreshingProjects}
             />
           ))}
@@ -344,6 +538,58 @@ const Projects = () => {
           }}
         />
       )}
+      
+      {/* Cancel Analysis Confirmation Modal */}
+      {isCancelAnalysisModalOpen && (
+        <CancelAnalysisModal
+          project={projectToCancel}
+          onConfirm={confirmCancelAnalysis}
+          onClose={() => {
+            setIsCancelAnalysisModalOpen(false);
+            setProjectToCancel(null);
+          }}
+        />
+      )}
+
+      {/* Notifications */}
+      <div className="fixed bottom-5 right-5 space-y-3 z-50">
+        {notifications.map(notification => (
+          <div 
+            key={notification.id} 
+            className={`flex items-center justify-between p-3 rounded-lg shadow-lg transition-all duration-300 animate-slideInRight ${
+              notification.type === 'success' ? 'bg-green-50 border-l-4 border-green-500' :
+              notification.type === 'error' ? 'bg-red-50 border-l-4 border-red-500' :
+              'bg-blue-50 border-l-4 border-blue-500'
+            }`}
+            style={{ minWidth: '300px', maxWidth: '400px' }}
+          >
+            <div className="flex items-center">
+              {notification.type === 'success' && (
+                <CheckCircleIcon className="w-5 h-5 text-green-500 mr-2" />
+              )}
+              {notification.type === 'error' && (
+                <XMarkIcon className="w-5 h-5 text-red-500 mr-2" />
+              )}
+              {notification.type === 'info' && (
+                <FolderIcon className="w-5 h-5 text-blue-500 mr-2" />
+              )}
+              <p className={`text-sm ${
+                notification.type === 'success' ? 'text-green-800' :
+                notification.type === 'error' ? 'text-red-800' :
+                'text-blue-800'
+              }`}>
+                {notification.message}
+              </p>
+            </div>
+            <button 
+              onClick={() => removeNotification(notification.id)}
+              className="ml-3 text-gray-400 hover:text-gray-600"
+            >
+              <XMarkIcon className="w-4 h-4" />
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 };
@@ -380,7 +626,7 @@ const EmptyState = () => (
   </div>
 );
 
-const ProjectCard = ({ project, stats, isAnalyzing, analysisStatus, elapsed, onEdit, onDelete, onRefresh, refreshingProjects }) => {
+const ProjectCard = ({ project, stats, isAnalyzing, analysisStatus, elapsed, onEdit, onDelete, onRefresh, onRetryAnalysis, onCancelAnalysis, refreshingProjects }) => {
   // Prefer live status commits if available while analyzing
   const liveCommits = analysisStatus?.totalCommits;
   const commits = isAnalyzing && typeof liveCommits === 'number'
@@ -411,143 +657,285 @@ const ProjectCard = ({ project, stats, isAnalyzing, analysisStatus, elapsed, onE
     onRefresh(project);
   };
 
+  // Calculate progress percentage for visual feedback
+  const getAnalysisProgress = () => {
+    if (typeof liveCommits === 'number' && liveCommits > 0) {
+      // Simulate progress based on commits processed (cap at 90% during analysis)
+      return Math.min((liveCommits / (liveCommits + 100)) * 90, 90);
+    }
+    return 0;
+  };
+
   return (
-    <div className={`group relative overflow-hidden shadow rounded-lg transition-all duration-300 ${
+    <div className={`group relative overflow-hidden rounded-xl transition-all duration-500 ${
       showPlaceholder 
-        ? 'bg-gradient-to-br from-gray-50 to-gray-100 shadow-md cursor-not-allowed transform scale-[0.98] border-2 border-gray-200' 
-        : 'bg-white hover:shadow-xl cursor-pointer hover:transform hover:scale-[1.02]'
+        ? 'bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 shadow-lg cursor-not-allowed transform scale-[0.98] border border-blue-200/50' 
+        : 'bg-white hover:shadow-2xl cursor-pointer hover:transform hover:scale-[1.03] shadow-md border border-gray-200/50 hover:border-blue-200/70'
     }`}>
       {/* Beautiful loading overlay for analyzing/processing projects */}
       {showPlaceholder && (
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-50/90 to-indigo-50/90 backdrop-blur-sm flex items-center justify-center z-10">
-          <div className="flex flex-col items-center space-y-4 p-6">
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-50/95 to-indigo-100/95 backdrop-blur-sm flex items-center justify-center z-10">
+          <div className="flex flex-col items-center space-y-6 p-8">
             <div className="relative">
-              <div className="animate-spin rounded-full h-12 w-12 border-4 border-gray-200"></div>
-              <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent absolute top-0 left-0"></div>
+              {/* Outer rotating ring */}
+              <div className="absolute inset-0 rounded-full border-4 border-blue-200 animate-spin"></div>
+              {/* Inner progress ring */}
+              <div className="rounded-full h-16 w-16 border-4 border-transparent border-t-blue-500 border-r-blue-400 animate-spin"></div>
+              {/* Center pulse */}
               <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-                <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
+                <div className="w-4 h-4 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full animate-pulse shadow-lg"></div>
               </div>
-            </div>
-            <div className="text-center space-y-2">
-              <h4 className="text-lg font-semibold text-gray-800 tracking-wide">
-                {isAnalyzing ? '🔍 Analyzing Repository' : '⚡ Processing Data'}
-              </h4>
-              <p className="text-sm text-gray-600 max-w-xs leading-relaxed">
-                {isAnalyzing
-                  ? `Scanning code & parsing commits${typeof liveCommits === 'number' ? ` • ${liveCommits} commits` : ''}`
-                  : isRefreshing
-                    ? 'Updating analysis with new commits'
-                    : 'Generating analytics and computing metrics'}
-              </p>
-              {(isAnalyzing || isRefreshing) && (
-                <p className="text-xs text-gray-500 mt-1">{isAnalyzing ? 'Elapsed: ' + elapsed : 'Updating...'}</p>
+              {/* Progress indicator */}
+              {getAnalysisProgress() > 0 && (
+                <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2">
+                  <div className="bg-blue-500 text-white text-xs px-2 py-1 rounded-full font-medium">
+                    {Math.round(getAnalysisProgress())}%
+                  </div>
+                </div>
               )}
-              <div className="flex justify-center space-x-1 pt-2">
-                <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{animationDelay: '0ms'}}></div>
-                <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{animationDelay: '150ms'}}></div>
-                <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{animationDelay: '300ms'}}></div>
+            </div>
+            
+            <div className="text-center space-y-2 max-w-xs">
+              <h4 className="text-base font-bold text-gray-800 tracking-wide flex items-center justify-center space-x-2">
+                {isAnalyzing ? (
+                  <>
+                    <span>🔍</span>
+                    <span>Analyzing Repository</span>
+                  </>
+                ) : (
+                  <>
+                    <span>⚡</span>
+                    <span>Processing Data</span>
+                  </>
+                )}
+              </h4>
+              
+              <div className="space-y-1.5">
+                <p className="text-xs text-gray-700 leading-relaxed font-medium">
+                  {isAnalyzing
+                    ? `Scanning commits & parsing changes${typeof liveCommits === 'number' ? ` • ${liveCommits.toLocaleString()} commits found` : ''}`
+                    : isRefreshing
+                      ? 'Updating analysis with latest commits'
+                      : 'Computing analytics and generating insights'}
+                </p>
+                
+                {(isAnalyzing || isRefreshing) && (
+                  <div className="flex items-center justify-center space-x-2 text-xs text-gray-600">
+                    {isAnalyzing ? (
+                      <>
+                        <ClockIcon className="h-3 w-3" />
+                        <span>Elapsed: {elapsed}</span>
+                        <ArrowPathIcon className="h-3 w-3 animate-spin text-blue-500 ml-1" />
+                        <span className="text-blue-500">Auto-refreshing</span>
+                      </>
+                    ) : (
+                      <>
+                        <ArrowPathIcon className="h-3 w-3 animate-spin" />
+                        <span>Updating...</span>
+                      </>
+                    )}
+                  </div>
+                )}
+                
+                {isAnalyzing && elapsed && parseInt(elapsed.split('m')[0]) >= 5 && (
+                  <div className="mt-1 p-1.5 bg-yellow-50 rounded-lg border border-yellow-100">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-yellow-700 font-medium flex items-center">
+                        <span className="inline-flex mr-1 h-2 w-2 bg-yellow-400 rounded-full animate-pulse"></span>
+                        Analysis taking longer than expected
+                      </p>
+                      {parseInt(elapsed.split('m')[0]) >= 10 && (
+                        <div className="flex space-x-2">
+                          <button 
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              onRetryAnalysis();
+                            }}
+                            className="text-xs bg-yellow-100 px-2 py-0.5 rounded text-yellow-800 hover:bg-yellow-200 transition-colors"
+                          >
+                            Retry
+                          </button>
+                          <button 
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              onCancelAnalysis(project.id);
+                            }}
+                            className="text-xs bg-red-100 px-2 py-0.5 rounded text-red-700 hover:bg-red-200 transition-colors"
+                          >
+                            Cancel & Delete
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {/* Progress bar for analysis */}
+              {isAnalyzing && getAnalysisProgress() > 0 && (
+                <div className="w-full bg-blue-100 rounded-full h-2 mt-4">
+                  <div 
+                    className="bg-gradient-to-r from-blue-500 to-indigo-500 h-2 rounded-full transition-all duration-1000 shadow-sm"
+                    style={{ width: `${getAnalysisProgress()}%` }}
+                  ></div>
+                </div>
+              )}
+              
+              {/* Animated dots */}
+              <div className="flex justify-center space-x-1.5 pt-3">
+                <div className="w-2 h-2 bg-gradient-to-r from-blue-400 to-indigo-400 rounded-full animate-bounce shadow-sm"></div>
+                <div className="w-2 h-2 bg-gradient-to-r from-blue-400 to-indigo-400 rounded-full animate-bounce shadow-sm" style={{animationDelay: '150ms'}}></div>
+                <div className="w-2 h-2 bg-gradient-to-r from-blue-400 to-indigo-400 rounded-full animate-bounce shadow-sm" style={{animationDelay: '300ms'}}></div>
               </div>
             </div>
           </div>
         </div>
       )}
-      
       <Link
         to={showPlaceholder ? '#' : `/projects/${project.id}`}
-        className={`block p-6 ${showPlaceholder ? 'pointer-events-none' : 'hover:bg-gray-50 transition-colors duration-200'}`}
+        className={`block transition-all duration-300 ${showPlaceholder ? 'pointer-events-none' : 'hover:bg-gradient-to-br hover:from-gray-50 hover:to-blue-50/30'}`}
       >
-        <div className="flex items-center">
-          <div className="flex-shrink-0">
-            <div className="inline-flex items-center justify-center p-3 bg-primary-100 rounded-md">
-              <FolderIcon className="h-6 w-6 text-primary-600" />
+        {/* Enhanced header with gradient background */}
+        <div className="relative p-4 bg-gradient-to-r from-gray-50 to-slate-50 border-b border-gray-100">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center min-w-0 max-w-[calc(100%-64px)]">
+              <div className="relative flex-shrink-0">
+                <div className="inline-flex items-center justify-center p-2 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg shadow-lg group-hover:shadow-xl transition-all duration-300">
+                  <FolderIcon className="h-4 w-4 text-white" />
+                </div>
+                {project.is_analyzed && !showPlaceholder && (
+                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white shadow-sm">
+                    <div className="w-1 h-1 bg-green-400 rounded-full absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 animate-pulse"></div>
+                  </div>
+                )}
+              </div>
+              <div className="ml-2.5 min-w-0 max-w-full">
+                <h3 className="text-base font-bold text-gray-900 truncate group-hover:text-blue-600 transition-colors duration-300">
+                  {project.name}
+                </h3>
+                <div className="text-xs text-gray-600 mt-1 flex items-center max-w-full">
+                  <svg className="w-3 h-3 mr-1 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                  </svg>
+                  <span className="truncate block">{project.repo_path}</span>
+                </div>
+              </div>
             </div>
-          </div>
-          <div className="ml-4 flex-1 min-w-0">
-            <h3 className="text-lg font-medium text-gray-900 truncate">
-              {project.name}
-            </h3>
-            <p className="text-sm text-gray-500 truncate">
-              {project.repo_path}
-            </p>
+            
+            {/* Status badge */}
+            <div className="flex-shrink-0">
+              {project.is_analyzed ? (
+                isRefreshing ? (
+                  <div className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-800 border border-blue-200 whitespace-nowrap">
+                    <ClockIcon className="h-2.5 w-2.5 mr-0.5 animate-spin" />
+                    <span className="truncate max-w-[60px]">Updating</span>
+                  </div>
+                ) : (
+                  <div className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-gradient-to-r from-green-100 to-emerald-100 text-green-800 border border-green-200 whitespace-nowrap">
+                    <div className="h-1.5 w-1.5 bg-green-500 rounded-full mr-0.5 animate-pulse"></div>
+                    <span className="truncate max-w-[60px]">Active</span>
+                  </div>
+                )
+              ) : (
+                <div className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-gradient-to-r from-yellow-100 to-orange-100 text-yellow-800 border border-yellow-200 whitespace-nowrap">
+                  <ClockIcon className="h-2.5 w-2.5 mr-0.5 animate-spin" />
+                  <span className="truncate max-w-[60px]">Analyzing</span>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
-        <div className="mt-4">
-          <div className="flex items-center text-sm text-gray-500">
-            <CalendarIcon className="flex-shrink-0 mr-1.5 h-4 w-4" />
-            Created {format(new Date(project.created_at), 'MMM d, yyyy')}
-          </div>
-          {project.last_analyzed_hash && (
-            <div className="flex items-center text-sm text-gray-500 mt-1">
-              <CodeBracketIcon className="flex-shrink-0 mr-1.5 h-4 w-4" />
-              Last analyzed: {project.last_analyzed_hash.substring(0, 8)}...
+        {/* Content section with enhanced styling */}
+        <div className="p-5 space-y-4">
+          {/* Metadata section */}
+          <div className="grid grid-cols-2 gap-3 text-xs">
+            <div className="flex items-center text-gray-600 overflow-hidden">
+              <CalendarIcon className="flex-shrink-0 mr-1.5 h-3 w-3 text-gray-400" />
+              <span className="font-medium whitespace-nowrap">Created</span>
+              <span className="ml-1.5 text-gray-900 truncate">{format(new Date(project.created_at), 'MMM d, yyyy')}</span>
             </div>
-          )}
-        </div>
+            {project.last_analyzed_hash && (
+              <div className="flex items-center text-gray-600 overflow-hidden">
+                <CodeBracketIcon className="flex-shrink-0 mr-1.5 h-3 w-3 text-gray-400" />
+                <span className="font-medium whitespace-nowrap">Last commit</span>
+                <span className="ml-1.5 text-gray-900 font-mono text-[10px] bg-gray-100 px-1.5 py-0.5 rounded truncate max-w-[70px]">
+                  {project.last_analyzed_hash.substring(0, 7)}
+                </span>
+              </div>
+            )}
+          </div>
 
-        <div className="mt-4 flex justify-between items-center">
-          <div className="flex space-x-4">
-            <div className="text-sm">
-              {typeof commits === 'number' ? (
-                <AnimatedNumber value={commits} className="font-medium text-gray-900" />
-              ) : (
-                <span className="font-medium text-gray-900">{commits}</span>
-              )}
-              <span className="text-gray-500 ml-1">commits</span>
+          {/* Stats grid with enhanced visual design */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-3 border border-blue-100 group-hover:border-blue-200 transition-all duration-300">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide">Commits</p>
+                  <p className="text-xl font-bold text-blue-900 mt-1">
+                    {typeof commits === 'number' ? (
+                      <AnimatedNumber value={commits} className="font-bold" />
+                    ) : (
+                      <span className="text-gray-500">{commits}</span>
+                    )}
+                  </p>
+                </div>
+                <div className="p-1.5 bg-blue-100 rounded-lg">
+                  <CodeBracketIcon className="h-4 w-4 text-blue-600" />
+                </div>
+              </div>
             </div>
-            <div className="text-sm">
-              {typeof changes === 'number' ? (
-                <AnimatedNumber value={changes} className="font-medium text-gray-900" />
-              ) : (
-                <span className="font-medium text-gray-900">{changes}</span>
-              )}
-              <span className="text-gray-500 ml-1">changes</span>
+            
+            <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-3 border border-green-100 group-hover:border-green-200 transition-all duration-300">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-semibold text-green-600 uppercase tracking-wide">Changes</p>
+                  <p className="text-xl font-bold text-green-900 mt-1">
+                    {typeof changes === 'number' ? (
+                      <AnimatedNumber value={changes} className="font-bold" />
+                    ) : (
+                      <span className="text-gray-500">{changes}</span>
+                    )}
+                  </p>
+                </div>
+                <div className="p-1.5 bg-green-100 rounded-lg">
+                  <svg className="h-4 w-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                  </svg>
+                </div>
+              </div>
             </div>
           </div>
-          {project.is_analyzed ? (
-            isRefreshing ? (
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                <ClockIcon className="h-3 w-3 mr-1 animate-spin" /> Updating
-              </span>
-            ) : (
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                Active
-              </span>
-            )
-          ) : (
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-              <ClockIcon className="h-3 w-3 mr-1 animate-spin" />
-              Analyzing...
-            </span>
-          )}
         </div>
       </Link>
 
-      {/* Action buttons - shown on hover */}
-      <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-        <div className="flex space-x-2">
+      {/* Enhanced action buttons with better positioning and styling */}
+      <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-y-1 group-hover:translate-y-0">
+        <div className="flex items-center space-x-2 bg-white/95 backdrop-blur-sm rounded-lg p-1.5 shadow-lg border border-gray-200/50">
           {project.is_analyzed && (
             <button
               onClick={handleRefreshClick}
-              className="inline-flex items-center p-1.5 bg-green-100 text-green-600 rounded-md hover:bg-green-200 transition-colors duration-200"
+              className="inline-flex items-center p-2 bg-green-100 text-green-700 rounded-md hover:bg-green-200 hover:scale-105 transition-all duration-200 group/btn"
               title="Refresh analysis (pull latest changes)"
             >
-              <ArrowPathIcon className="h-4 w-4" />
+              <ArrowPathIcon className="h-4 w-4 group-hover/btn:rotate-180 transition-transform duration-300" />
             </button>
           )}
           <button
             onClick={handleEditClick}
-            className="inline-flex items-center p-1.5 bg-blue-100 text-blue-600 rounded-md hover:bg-blue-200 transition-colors duration-200"
-            title="Edit project"
+            className="inline-flex items-center p-2 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 hover:scale-105 transition-all duration-200 group/btn"
+            title="Edit project details"
           >
-            <PencilIcon className="h-4 w-4" />
+            <PencilIcon className="h-4 w-4 group-hover/btn:scale-110 transition-transform duration-200" />
           </button>
           <button
             onClick={handleDeleteClick}
-            className="inline-flex items-center p-1.5 bg-red-100 text-red-600 rounded-md hover:bg-red-200 transition-colors duration-200"
+            className="inline-flex items-center p-2 bg-red-100 text-red-700 rounded-md hover:bg-red-200 hover:scale-105 transition-all duration-200 group/btn"
             title="Delete project"
           >
-            <TrashIcon className="h-4 w-4" />
+            <TrashIcon className="h-4 w-4 group-hover/btn:scale-110 transition-transform duration-200" />
           </button>
         </div>
       </div>
@@ -673,6 +1061,56 @@ const DeleteConfirmationModal = ({ project, onConfirm, onClose }) => {
               className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
             >
               Delete Project
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Modal for confirming analysis cancellation
+const CancelAnalysisModal = ({ project, onConfirm, onClose }) => {
+  return (
+    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+      <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+        <div className="mt-3">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-medium text-gray-900">Cancel Analysis</h3>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <XMarkIcon className="h-6 w-6" />
+            </button>
+          </div>
+          
+          <div className="mb-6">
+            <div className="flex items-center justify-center mb-4 text-red-500">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <p className="text-center text-sm text-gray-600 mb-2">
+              <span className="font-medium">Are you sure?</span>
+            </p>
+            <p className="text-sm text-gray-500 text-center">
+              This will cancel the ongoing analysis for "{project?.name}" and permanently delete the project. This action cannot be undone.
+            </p>
+          </div>
+          
+          <div className="flex justify-end space-x-3">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+            >
+              Keep Analyzing
+            </button>
+            <button
+              onClick={onConfirm}
+              className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+            >
+              Cancel & Delete
             </button>
           </div>
         </div>

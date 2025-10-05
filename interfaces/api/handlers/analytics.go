@@ -128,8 +128,47 @@ func GetProjectHotspots(c *gin.Context) {
 		return
 	}
 
+	// Parse pagination parameters
+	page := 1
+	limit := 20
+	if p := c.Query("page"); p != "" {
+		if parsed, err := strconv.Atoi(p); err == nil && parsed > 0 {
+			page = parsed
+		}
+	}
+	if l := c.Query("limit"); l != "" {
+		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 && parsed <= 100 {
+			limit = parsed
+		}
+	}
+
+	// Parse filter parameters
+	startDate := c.Query("startDate")
+	endDate := c.Query("endDate")
+	repository := c.Query("repository")
+	path := c.Query("path")
+	metric := c.Query("metric")
+	riskLevel := c.Query("riskLevel")
+	fileTypes := c.Query("fileTypes")
+
+	minComplexity := 0
+	if mc := c.Query("minComplexity"); mc != "" {
+		if parsed, err := strconv.Atoi(mc); err == nil {
+			minComplexity = parsed
+		}
+	}
+
+	minChanges := 0
+	if mc := c.Query("minChanges"); mc != "" {
+		if parsed, err := strconv.Atoi(mc); err == nil {
+			minChanges = parsed
+		}
+	}
+
 	noCache := c.Query("nocache") == "1"
-	cacheKey := getCacheKey("hotspots", id)
+	// Include all filter parameters in cache key
+	cacheKey := fmt.Sprintf("hotspots_%d_page_%d_limit_%d_start_%s_end_%s_repo_%s_path_%s_metric_%s_risk_%s_types_%s_mincomp_%d_minchg_%d",
+		id, page, limit, startDate, endDate, repository, path, metric, riskLevel, fileTypes, minComplexity, minChanges)
 	if !noCache {
 		if cached, exists := cache.get(cacheKey); exists {
 			c.Header("X-Cache", "HIT")
@@ -145,8 +184,19 @@ func GetProjectHotspots(c *gin.Context) {
 		}
 	}())
 
-	// Get hotspots from database
-	hotspots, err := getProjectHotspotsFromDB(id)
+	// Get hotspots from database with filters
+	filters := map[string]interface{}{
+		"startDate":     startDate,
+		"endDate":       endDate,
+		"repository":    repository,
+		"path":          path,
+		"metric":        metric,
+		"riskLevel":     riskLevel,
+		"fileTypes":     fileTypes,
+		"minComplexity": minComplexity,
+		"minChanges":    minChanges,
+	}
+	hotspots, totalCount, err := getProjectHotspotsFromDB(id, page, limit, filters)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":  "Failed to retrieve hotspots",
@@ -155,9 +205,17 @@ func GetProjectHotspots(c *gin.Context) {
 		return
 	}
 
+	totalPages := (totalCount + limit - 1) / limit // Ceiling division
+
 	result := gin.H{
 		"project_id": id,
 		"hotspots":   hotspots,
+		"pagination": gin.H{
+			"page":        page,
+			"limit":       limit,
+			"total":       totalCount,
+			"total_pages": totalPages,
+		},
 	}
 
 	if !noCache {
@@ -230,6 +288,166 @@ func GetDashboardStats(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, stats)
+}
+
+// GetProjectTemporalCoupling returns temporal coupling pairs for a project
+func GetProjectTemporalCoupling(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid project ID"})
+		return
+	}
+
+	// Optional query params
+	limit := 200                        // enforce max 200
+	if l := c.Query("limit"); l != "" { // allow smaller limits if provided
+		if v, err := strconv.Atoi(l); err == nil && v > 0 && v <= 200 {
+			limit = v
+		}
+	}
+	startDate := c.Query("startDate")
+	endDate := c.Query("endDate")
+
+	// New threshold parameters
+	minSharedCommits := 2 // default value
+	if msc := c.Query("minSharedCommits"); msc != "" {
+		if v, err := strconv.Atoi(msc); err == nil && v > 0 {
+			minSharedCommits = v
+		}
+	}
+
+	minCouplingScore := 0.0 // default value
+	if mcs := c.Query("minCouplingScore"); mcs != "" {
+		if v, err := strconv.ParseFloat(mcs, 64); err == nil && v >= 0.0 && v <= 1.0 {
+			minCouplingScore = v
+		}
+	}
+
+	// File types filter
+	fileTypes := c.Query("fileTypes") // comma-separated list like "php,js,py"
+
+	// Cache key includes parameters
+	cacheKey := fmt.Sprintf("temporal_coupling_%d_%d_%s_%s_%d_%.2f_%s", id, limit, startDate, endDate, minSharedCommits, minCouplingScore, fileTypes)
+	if cached, exists := cache.get(cacheKey); exists {
+		c.Header("X-Cache", "HIT")
+		c.JSON(http.StatusOK, cached)
+		return
+	}
+	c.Header("X-Cache", "MISS")
+
+	repo := repository.NewAnalyticsRepository(database.DB)
+	useCase := analytics.NewAnalyticsUseCase(repo)
+	pairs, err := useCase.GetTemporalCoupling(id, limit, startDate, endDate, minSharedCommits, minCouplingScore, fileTypes)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve temporal coupling", "detail": err.Error()})
+		return
+	}
+
+	result := gin.H{
+		"project_id":        id,
+		"temporal_coupling": pairs,
+		"params":            gin.H{"limit": limit, "startDate": startDate, "endDate": endDate, "minSharedCommits": minSharedCommits, "minCouplingScore": minCouplingScore, "fileTypes": fileTypes},
+	}
+	cache.set(cacheKey, result)
+	c.JSON(http.StatusOK, result)
+}
+
+// GetTemporalCouplingFlat supports /api/v1/temporal-coupling?projectId=ID
+func GetTemporalCouplingFlat(c *gin.Context) {
+	projectIDStr := c.Query("projectId")
+	if projectIDStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "projectId query parameter is required"})
+		return
+	}
+	id, err := strconv.Atoi(projectIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid projectId"})
+		return
+	}
+
+	limit := 200
+	if l := c.Query("limit"); l != "" {
+		if v, err := strconv.Atoi(l); err == nil && v > 0 && v <= 200 {
+			limit = v
+		}
+	}
+	startDate := c.Query("startDate")
+	endDate := c.Query("endDate")
+
+	// New threshold parameters
+	minSharedCommits := 2 // default value
+	if msc := c.Query("minSharedCommits"); msc != "" {
+		if v, err := strconv.Atoi(msc); err == nil && v > 0 {
+			minSharedCommits = v
+		}
+	}
+
+	minCouplingScore := 0.0 // default value
+	if mcs := c.Query("minCouplingScore"); mcs != "" {
+		if v, err := strconv.ParseFloat(mcs, 64); err == nil && v >= 0.0 && v <= 1.0 {
+			minCouplingScore = v
+		}
+	}
+
+	// File types filter
+	fileTypes := c.Query("fileTypes") // comma-separated list like "php,js,py"
+
+	cacheKey := fmt.Sprintf("temporal_coupling_flat_%d_%d_%s_%s_%d_%.2f_%s", id, limit, startDate, endDate, minSharedCommits, minCouplingScore, fileTypes)
+	if cached, exists := cache.get(cacheKey); exists {
+		c.Header("X-Cache", "HIT")
+		c.JSON(http.StatusOK, cached)
+		return
+	}
+	c.Header("X-Cache", "MISS")
+
+	repo := repository.NewAnalyticsRepository(database.DB)
+	useCase := analytics.NewAnalyticsUseCase(repo)
+	pairs, err := useCase.GetTemporalCoupling(id, limit, startDate, endDate, minSharedCommits, minCouplingScore, fileTypes)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to retrieve temporal coupling", "detail": err.Error()})
+		return
+	}
+
+	result := gin.H{
+		"projectId":        id,
+		"temporalCoupling": pairs,
+		"params":           gin.H{"limit": limit, "startDate": startDate, "endDate": endDate, "minSharedCommits": minSharedCommits, "minCouplingScore": minCouplingScore, "fileTypes": fileTypes},
+	}
+	cache.set(cacheKey, result)
+	c.JSON(http.StatusOK, result)
+}
+
+// GetProjectFileTypes returns available file types for a project
+func GetProjectFileTypes(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid project ID"})
+		return
+	}
+
+	// Cache key for file types
+	cacheKey := fmt.Sprintf("project_file_types_%d", id)
+	if cached, exists := cache.get(cacheKey); exists {
+		c.Header("X-Cache", "HIT")
+		c.JSON(http.StatusOK, cached)
+		return
+	}
+	c.Header("X-Cache", "MISS")
+
+	repo := repository.NewAnalyticsRepository(database.DB)
+	useCase := analytics.NewAnalyticsUseCase(repo)
+	fileTypes, err := useCase.GetProjectFileTypes(id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve file types", "detail": err.Error()})
+		return
+	}
+
+	result := gin.H{
+		"project_id": id,
+		"file_types": fileTypes,
+	}
+	cache.set(cacheKey, result)
+	c.JSON(http.StatusOK, result)
 }
 
 // getDashboardStatsFromDB calculates dashboard statistics from the database
@@ -353,20 +571,125 @@ func getProjectStatsFromDB(projectID int) (gin.H, error) {
 		return nil, fmt.Errorf("failed to get project stats: %w", err)
 	}
 
+	// Get total number of hotspots (files with more than 1 change)
+	var totalHotspots int
+	hotspotQuery := `
+		SELECT COUNT(*) 
+		FROM (
+			SELECT ch.file_path
+			FROM changes ch
+			JOIN commits c ON ch.commit_id = c.id
+			WHERE c.project_id = ?
+			GROUP BY ch.file_path
+			HAVING COUNT(*) > 1
+		) AS hotspot_files
+	`
+	err = database.DB.QueryRow(hotspotQuery, projectID).Scan(&totalHotspots)
+	if err != nil {
+		// Don't fail if we can't get hotspot count, just set to 0
+		totalHotspots = 0
+	}
+
 	return gin.H{
-		"total_commits": totalCommits,
-		"contributors":  contributors,
-		"total_files":   totalFiles,
-		"lines_added":   linesAdded,
-		"lines_deleted": linesDeleted,
-		"net_lines":     linesAdded - linesDeleted,
-		"last_commit":   lastCommit,
+		"total_commits":  totalCommits,
+		"contributors":   contributors,
+		"total_files":    totalFiles,
+		"lines_added":    linesAdded,
+		"lines_deleted":  linesDeleted,
+		"net_lines":      linesAdded - linesDeleted,
+		"last_commit":    lastCommit,
+		"total_hotspots": totalHotspots,
 	}, nil
 }
 
-// getProjectHotspotsFromDB gets hotspots (frequently changed files) for a project
-func getProjectHotspotsFromDB(projectID int) ([]gin.H, error) {
-	query := `
+// getProjectHotspotsFromDB gets hotspots (frequently changed files) for a project with pagination and filters
+func getProjectHotspotsFromDB(projectID int, page int, limit int, filters map[string]interface{}) ([]gin.H, int, error) {
+	// Build WHERE clause for filters
+	whereConditions := []string{"c.project_id = ?"}
+	countArgs := []interface{}{projectID}
+	queryArgs := []interface{}{projectID}
+
+	// Date range filter
+	if startDate, ok := filters["startDate"].(string); ok && startDate != "" {
+		whereConditions = append(whereConditions, "c.timestamp >= ?")
+		countArgs = append(countArgs, startDate)
+		queryArgs = append(queryArgs, startDate)
+	}
+	if endDate, ok := filters["endDate"].(string); ok && endDate != "" {
+		whereConditions = append(whereConditions, "c.timestamp <= ?")
+		countArgs = append(countArgs, endDate)
+		queryArgs = append(queryArgs, endDate)
+	}
+
+	// Repository filter (if applicable)
+	if repository, ok := filters["repository"].(string); ok && repository != "" && repository != "all" {
+		whereConditions = append(whereConditions, "c.repository = ?")
+		countArgs = append(countArgs, repository)
+		queryArgs = append(queryArgs, repository)
+	}
+
+	// Path filter
+	if path, ok := filters["path"].(string); ok && path != "" {
+		whereConditions = append(whereConditions, "ch.file_path LIKE ?")
+		pathPattern := fmt.Sprintf("%%%s%%", path)
+		countArgs = append(countArgs, pathPattern)
+		queryArgs = append(queryArgs, pathPattern)
+	}
+
+	// File type filter
+	if fileTypes, ok := filters["fileTypes"].(string); ok && fileTypes != "" {
+		types := strings.Split(fileTypes, ",")
+		if len(types) > 0 {
+			typeConditions := make([]string, len(types))
+			for i, fileType := range types {
+				typeConditions[i] = "ch.file_path LIKE ?"
+				pattern := fmt.Sprintf("%%.%s", strings.TrimSpace(fileType))
+				countArgs = append(countArgs, pattern)
+				queryArgs = append(queryArgs, pattern)
+			}
+			whereConditions = append(whereConditions, "("+strings.Join(typeConditions, " OR ")+")")
+		}
+	}
+
+	whereClause := strings.Join(whereConditions, " AND ")
+
+	// Build HAVING clause for complexity and change filters
+	havingConditions := []string{"COUNT(*) > 1"}
+
+	if minChanges, ok := filters["minChanges"].(int); ok && minChanges > 0 {
+		havingConditions = append(havingConditions, "COUNT(*) >= ?")
+		countArgs = append(countArgs, minChanges)
+		queryArgs = append(queryArgs, minChanges)
+	}
+
+	havingClause := strings.Join(havingConditions, " AND ")
+
+	// First, get the total count with filters applied
+	countQuery := fmt.Sprintf(`
+		SELECT COUNT(*) 
+		FROM (
+			SELECT ch.file_path
+			FROM changes ch
+			JOIN commits c ON ch.commit_id = c.id
+			WHERE %s
+			GROUP BY ch.file_path
+			HAVING %s
+		) AS hotspot_files
+	`, whereClause, havingClause)
+
+	var totalCount int
+	err := database.DB.QueryRow(countQuery, countArgs...).Scan(&totalCount)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get total count: %w", err)
+	}
+
+	// Calculate offset
+	offset := (page - 1) * limit
+
+	// Add limit and offset to query args
+	queryArgs = append(queryArgs, limit, offset)
+
+	query := fmt.Sprintf(`
 		SELECT 
 			ch.file_path,
 			COUNT(*) as change_count,
@@ -375,16 +698,16 @@ func getProjectHotspotsFromDB(projectID int) ([]gin.H, error) {
 			MAX(c.timestamp) as last_modified
 		FROM changes ch
 		JOIN commits c ON ch.commit_id = c.id
-		WHERE c.project_id = ?
+		WHERE %s
 		GROUP BY ch.file_path
-		HAVING change_count > 1
+		HAVING %s
 		ORDER BY total_changes DESC
-		LIMIT 20
-	`
+		LIMIT ? OFFSET ?
+	`, whereClause, havingClause)
 
-	rows, err := database.DB.Query(query, projectID)
+	rows, err := database.DB.Query(query, queryArgs...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query hotspots: %w", err)
+		return nil, 0, fmt.Errorf("failed to query hotspots: %w", err)
 	}
 	defer rows.Close()
 
@@ -416,7 +739,7 @@ func getProjectHotspotsFromDB(projectID int) ([]gin.H, error) {
 		})
 	}
 
-	return hotspots, nil
+	return hotspots, totalCount, nil
 }
 
 // GetProjectOverview returns project overview with health trends and risk metrics

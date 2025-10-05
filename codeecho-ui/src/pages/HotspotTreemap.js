@@ -12,6 +12,7 @@ const HotspotTreemap = () => {
 
   const [project, setProject] = useState(null);
   const [hotspots, setHotspots] = useState([]);
+  const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -36,6 +37,11 @@ const HotspotTreemap = () => {
   const [fileTypeCounts, setFileTypeCounts] = useState({});
   // Risk level filter
   const [riskLevel, setRiskLevel] = useState('all'); // all | High | Medium | Low
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [pagination, setPagination] = useState(null);
 
   const computeRange = useCallback(() => {
     const now = new Date();
@@ -72,6 +78,20 @@ const HotspotTreemap = () => {
     loadProject();
   }, [projectId, api]);
 
+  // Load project stats to get total hotspots count
+  useEffect(() => {
+    const loadStats = async () => {
+      if (!projectId || !api?.getProjectStats) return;
+      try {
+        const statsData = await api.getProjectStats(projectId);
+        setStats(statsData.stats || {});
+      } catch (e) {
+        console.warn('Failed to load project stats', e);
+      }
+    };
+    loadStats();
+  }, [projectId, api]);
+
   // Fetch repositories list (microservices)
   useEffect(() => {
     const fetchRepos = async () => {
@@ -86,6 +106,11 @@ const HotspotTreemap = () => {
     fetchRepos();
   }, [api]);
 
+  // Reset page to 1 when filters change (but not when just pagination changes)
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [timeRange, startDate, endDate, repository, debouncedPath, complexityMetric, minComplexity, minChanges, selectedFileTypes, riskLevel, pageSize]);
+
   // Fetch hotspots when filters change
   useEffect(() => {
     const fetchHotspots = async () => {
@@ -93,10 +118,13 @@ const HotspotTreemap = () => {
       setLoading(true);
       setError(null);
       try {
+        console.log('Fetching hotspots for page:', currentPage, 'pageSize:', pageSize);
         const { startDate: s, endDate: e } = computeRange();
-  const data = await api.getProjectHotspots(projectId, s, e, repository, debouncedPath, complexityMetric, minComplexity, minChanges, selectedFileTypes, riskLevel);
+        const data = await api.getProjectHotspots(projectId, s, e, repository, debouncedPath, complexityMetric, minComplexity, minChanges, selectedFileTypes, riskLevel, currentPage, pageSize);
         const hs = Array.isArray(data) ? data : (data?.hotspots || []);
+        console.log('Received hotspots:', hs.length, 'Pagination:', data?.pagination);
         setHotspots(hs);
+        setPagination(data?.pagination || null);
       } catch (err) {
         let serverMessage = err?.response?.data?.error || err?.response?.data?.message;
         const detail = err?.response?.data?.detail;
@@ -104,12 +132,13 @@ const HotspotTreemap = () => {
         console.error('Error loading hotspots:', err, 'serverMessage:', serverMessage);
         setError(serverMessage || 'Failed to load hotspots');
         setHotspots([]);
+        setPagination(null);
       } finally {
         setLoading(false);
       }
     };
     fetchHotspots();
-  }, [projectId, computeRange, api, repository, debouncedPath, complexityMetric, minComplexity, minChanges, selectedFileTypes]);
+  }, [projectId, computeRange, api, repository, debouncedPath, complexityMetric, minComplexity, minChanges, selectedFileTypes, riskLevel, currentPage, pageSize]);
 
   // Debounce path selection (still keep in case we later allow typing)
   useEffect(() => {
@@ -286,7 +315,7 @@ const HotspotTreemap = () => {
 
   const hasRealData = hotspots && hotspots.length > 0;
   const hasFilteredData = filteredHotspots && filteredHotspots.length > 0;
-  const totalHotspotCount = hotspots ? hotspots.length : 0;
+  const totalHotspotCount = stats?.total_hotspots || hotspots?.length || 0;
   const filteredHotspotCount = filteredHotspots ? filteredHotspots.length : 0;
 
   return (
@@ -294,18 +323,8 @@ const HotspotTreemap = () => {
       {/* Debug */}
       {process.env.NODE_ENV !== 'production' && console.debug('[HotspotTreemap] API methods:', api ? Object.keys(api) : 'api undefined')}
 
-      {/* Header */}
+      {/* Header (back button removed; tabs handle navigation) */}
       <div className="mb-6">
-        <div className="flex items-center justify-between mb-2">
-          <button
-            type="button"
-            onClick={() => { if (window.history.length > 1) navigate(-1); else navigate('/projects'); }}
-            className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium group"
-          >
-            <span className="inline-block transition-transform group-hover:-translate-x-0.5">←</span>
-            <span>Back</span>
-          </button>
-        </div>
         <h1 className="text-2xl font-semibold text-gray-900">
           {project ? `${project.name} - Hotspots` : 'Project Hotspot Analysis'}
         </h1>
@@ -377,7 +396,26 @@ const HotspotTreemap = () => {
           {/* Hotspots Table */}
           {filteredHotspots && filteredHotspots.length > 0 && (
             <div className="bg-white border border-gray-200 rounded-lg p-4 mb-6 overflow-x-auto">
-              <h3 className="text-sm font-medium text-gray-700 mb-3">Hotspot Files ({filteredHotspots.length})</h3>
+              <div className="flex justify-between items-center mb-3">
+                <h3 className="text-sm font-medium text-gray-700">Hotspot Files ({totalHotspotCount})</h3>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-gray-600">Items per page:</label>
+                  <select 
+                    value={pageSize} 
+                    onChange={(e) => {
+                      console.log('Changing pageSize from', pageSize, 'to', Number(e.target.value));
+                      setPageSize(Number(e.target.value));
+                      setCurrentPage(1); // Reset to first page when changing page size
+                    }}
+                    className="text-xs border border-gray-300 rounded px-2 py-1"
+                  >
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                </div>
+              </div>
               <table className="min-w-full text-xs">
                 <thead className="bg-gray-50 text-gray-600">
                   <tr>
@@ -406,6 +444,54 @@ const HotspotTreemap = () => {
               </table>
               {filteredHotspots.length > 150 && (
                 <div className="mt-2 text-[11px] text-gray-500">Showing first 150 results. Refine filters to narrow further.</div>
+              )}
+              
+              {/* Pagination Controls */}
+              {pagination && pagination.total_pages > 1 && (
+                <div className="mt-4 flex items-center justify-between border-t pt-4">
+                  <div className="text-sm text-gray-600">
+                    Showing page {pagination.page} of {pagination.total_pages} ({pagination.total} total hotspots)
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                      disabled={currentPage <= 1}
+                      className="px-3 py-1 text-sm border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                    >
+                      Previous
+                    </button>
+                    
+                    {/* Page numbers */}
+                    {Array.from({ length: Math.min(5, pagination.total_pages) }, (_, i) => {
+                      const page = Math.max(1, Math.min(pagination.total_pages - 4, currentPage - 2)) + i;
+                      if (page > pagination.total_pages) return null;
+                      return (
+                        <button
+                          key={page}
+                          onClick={() => {
+                            console.log('Clicking page:', page, 'current:', currentPage);
+                            setCurrentPage(page);
+                          }}
+                          className={`px-3 py-1 text-sm border rounded ${
+                            currentPage === page 
+                              ? 'bg-blue-500 text-white border-blue-500' 
+                              : 'hover:bg-gray-50'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      );
+                    })}
+                    
+                    <button
+                      onClick={() => setCurrentPage(Math.min(pagination.total_pages, currentPage + 1))}
+                      disabled={currentPage >= pagination.total_pages}
+                      className="px-3 py-1 text-sm border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
           )}

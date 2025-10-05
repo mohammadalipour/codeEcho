@@ -33,16 +33,24 @@ func AnalyzeProject(c *gin.Context) {
 	projectRepo := mysql.NewProjectRepository(database.DB)
 	analysisUseCase := analysis.NewProjectAnalysisUseCase(projectRepo)
 
-	// Validate repository path first
+	// Get project to verify it exists
+	_, err = projectRepo.GetByID(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error":  "Project not found",
+			"detail": err.Error(),
+		})
+		return
+	}
+
+	// Validate the repository
 	if err := analysisUseCase.ValidateRepository(request.RepoPath); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":  "Invalid repository path",
 			"detail": err.Error(),
 		})
 		return
-	}
-
-	// Start analysis in background (this can take a while)
+	} // Start analysis in background (this can take a while)
 	go func() {
 		log.Printf("Starting analysis of repository: %d at path: %s", id, request.RepoPath)
 

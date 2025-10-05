@@ -1,25 +1,21 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useApi } from '../services/ApiContext';
-import { 
-  FireIcon, 
-  CodeBracketIcon, 
-  UserIcon,
-  CalendarIcon,
-  ExclamationTriangleIcon
-} from '@heroicons/react/24/outline';
-import { 
-  LineChart, 
-  Line, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
+import { format } from 'date-fns';
+import { FireIcon } from '@heroicons/react/24/outline';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
   ResponsiveContainer,
   BarChart,
   Bar
 } from 'recharts';
 
+// Overview analytics page (formerly ProjectDetail header moved to ProjectLayout)
 const ProjectDetail = () => {
   const { id } = useParams();
   const { api, loading, error } = useApi();
@@ -36,7 +32,6 @@ const ProjectDetail = () => {
         api.getProjectHotspots(id),
         api.getProjectStats(id)
       ]);
-      
       setProject(projectData);
       setCommits(commitsData.commits || []);
       setHotspots(hotspotsData.hotspots || []);
@@ -126,64 +121,9 @@ const ProjectDetail = () => {
   const contributorsCount = getContributorsCount(commits);
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8">
-      {/* Header */}
-      <div className="mb-8">
-        <div className="flex justify-between items-start">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">
-              {project?.name || `Project ${id}`}
-            </h1>
-            <p className="mt-2 text-sm text-gray-700">
-              {project?.repo_path ? `Repository: ${project.repo_path}` : 'Analytics and insights for this repository'}
-            </p>
-          </div>
-          <div className="flex space-x-3">
-            <Link
-              to={`/projects/${id}/hotspots`}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-            >
-              <FireIcon className="h-4 w-4 mr-2" />
-              Hotspot Treemap
-            </Link>
-            <Link
-              to={`/projects/${id}/knowledge-risk`}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
-            >
-              <ExclamationTriangleIcon className="h-4 w-4 mr-2" />
-              Knowledge Risk
-            </Link>
-          </div>
-        </div>
-      </div>
+    <div>
 
-      {/* Stats Overview */}
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 mb-8">
-        <StatCard
-          title="Total Commits"
-          value={commits.length || 0}
-          icon={CodeBracketIcon}
-          color="bg-blue-500"
-        />
-        <StatCard
-          title="Contributors"
-          value={contributorsCount}
-          icon={UserIcon}
-          color="bg-green-500"
-        />
-        <StatCard
-          title="Hotspots"
-          value={hotspots.length || 0}
-          icon={FireIcon}
-          color="bg-red-500"
-        />
-        <StatCard
-          title="Last Updated"
-          value="N/A"
-          icon={CalendarIcon}
-          color="bg-purple-500"
-        />
-      </div>
+      {/* Stat cards removed: metrics now displayed in persistent header */}
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
@@ -291,28 +231,6 @@ const ProjectDetail = () => {
   );
 };
 
-const StatCard = ({ title, value, icon: Icon, color }) => (
-  <div className="bg-white overflow-hidden shadow rounded-lg">
-    <div className="p-5">
-      <div className="flex items-center">
-        <div className="flex-shrink-0">
-          <div className={`inline-flex items-center justify-center p-3 rounded-md ${color}`}>
-            <Icon className="h-6 w-6 text-white" />
-          </div>
-        </div>
-        <div className="ml-5 w-0 flex-1">
-          <dl>
-            <dt className="text-sm font-medium text-gray-500 truncate">
-              {title}
-            </dt>
-            <dd className="text-lg font-medium text-gray-900">
-              {typeof value === 'number' ? value.toLocaleString() : value}
-            </dd>
-          </dl>
-        </div>
-      </div>
-    </div>
-  </div>
-);
+// Removed StatCard component (header now owns these stats)
 
 export default ProjectDetail;

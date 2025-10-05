@@ -72,3 +72,14 @@ type AuthorHotspot struct {
 	LastActivity string  `json:"lastActivity"`
 	RiskScore    float64 `json:"riskScore"`
 }
+
+// TemporalCoupling represents a pair of files that frequently change together
+type TemporalCoupling struct {
+	FileA         string  `json:"file_a"`
+	FileB         string  `json:"file_b"`
+	SharedCommits int     `json:"shared_commits"`
+	TotalCommitsA int     `json:"total_commits_a"`
+	TotalCommitsB int     `json:"total_commits_b"`
+	CouplingScore float64 `json:"coupling_score"`
+	LastModified  string  `json:"last_modified"`
+}

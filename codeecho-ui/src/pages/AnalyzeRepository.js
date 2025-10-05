@@ -9,22 +9,22 @@ import {
   ExclamationTriangleIcon,
   ClockIcon,
   CloudArrowUpIcon,
-  DocumentArrowUpIcon
+  DocumentArrowUpIcon,
+  PlusIcon,
 } from '@heroicons/react/24/outline';
 
 const AnalyzeRepository = () => {
   const navigate = useNavigate();
   const { api } = useApi();
   
-  const [inputMethod, setInputMethod] = useState('url'); // 'url' or 'upload'
+  const [inputMethod, setInputMethod] = useState('url');
   const [formData, setFormData] = useState({
     projectName: '',
     repoPath: '',
     description: ''
   });
   const [selectedFile, setSelectedFile] = useState(null);
-  
-  const [currentStep, setCurrentStep] = useState('input'); // input, creating, analyzing, complete
+  const [currentStep, setCurrentStep] = useState('input');
   const [projectId, setProjectId] = useState(null);
   const [error, setError] = useState('');
   const [progress, setProgress] = useState({
@@ -73,102 +73,6 @@ const AnalyzeRepository = () => {
            url.match(/^https?:\/\/(github|gitlab|bitbucket)\.com\/.*$/i);
   };
 
-  const validateForm = () => {
-    if (!formData.projectName.trim()) {
-      setError('Project name is required');
-      return false;
-    }
-    
-    if (inputMethod === 'url') {
-      if (!formData.repoPath.trim()) {
-        setError('Repository path or URL is required');
-        return false;
-      }
-    } else if (inputMethod === 'upload') {
-      if (!selectedFile) {
-        setError('Please select a ZIP file to upload');
-        return false;
-      }
-    }
-    
-    return true;
-  };
-
-  const uploadProjectFile = async (projectId, file) => {
-    const formData = new FormData();
-    formData.append('project', file);
-    
-    const response = await fetch(`http://localhost:8080/api/v1/projects/${projectId}/upload`, {
-      method: 'POST',
-      body: formData
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Upload failed');
-    }
-    
-    return await response.json();
-  };
-
-  const handleAnalyzeRepository = async (e) => {
-    e.preventDefault();
-    
-    if (!validateForm()) return;
-    
-    try {
-      setError('');
-      setCurrentStep('creating');
-      setProgress({
-        message: 'Creating project...',
-        details: 'Setting up project structure in database'
-      });
-
-      // Step 1: Create project
-      const projectData = {
-        name: formData.projectName.trim(),
-        repo_path: inputMethod === 'upload' ? 'uploaded' : formData.repoPath.trim(),
-        description: formData.description.trim() || `Git repository analysis for ${formData.projectName}`
-      };
-      
-      const project = await api.createProject(projectData);
-      setProjectId(project.id);
-      
-      // Step 2: Handle upload or start analysis immediately  
-      if (inputMethod === 'upload') {
-        setProgress({
-          message: 'Uploading project files...',
-          details: 'Extracting and preparing your project for analysis'
-        });
-        
-        const uploadResult = await uploadProjectFile(project.id, selectedFile);
-        
-        // Start background analysis for upload
-        await api.analyzeProject(project.id, uploadResult.projectPath);
-      } else {
-        // Start background analysis for URL
-        await api.analyzeProject(project.id, formData.repoPath.trim());
-      }
-      
-      // Step 3: Immediately redirect to dashboard - no waiting!
-      setCurrentStep('complete');
-      setProgress({
-        message: 'Project created and analysis started!',
-        details: 'Analysis is running in the background. You can view progress on the dashboard.'
-      });
-      
-      // Auto-redirect to dashboard after 2 seconds
-      setTimeout(() => {
-        navigate('/projects');
-      }, 2000);
-
-    } catch (err) {
-      setError(err.message || 'Analysis failed. Please check the repository and try again.');
-      setCurrentStep('input');
-      setProgress({ message: '', details: '' });
-    }
-  };
-
   const handleViewProject = () => {
     if (projectId) {
       navigate(`/projects/${projectId}`);
@@ -203,75 +107,238 @@ const AnalyzeRepository = () => {
     }
   };
 
+  const handleAnalyzeRepository = async (e) => {
+    e.preventDefault();
+    
+    if (!formData.projectName.trim()) {
+      setError('Project name is required');
+      return;
+    }
+    
+    if (inputMethod === 'url' && !formData.repoPath.trim()) {
+      setError('Repository path or URL is required');
+      return;
+    }
+    
+    if (inputMethod === 'upload' && !selectedFile) {
+      setError('Please select a ZIP file to upload');
+      return;
+    }
+
+    if (inputMethod === 'url' && !isGitUrl(formData.repoPath.trim())) {
+      setError('Please enter a valid Git repository URL');
+      return;
+    }
+    
+    try {
+      setError('');
+      setCurrentStep('creating');
+      setProgress({
+        message: 'Creating project...',
+        details: 'Setting up project structure in database'
+      });
+
+      // Format data according to the API's expected schema
+      const projectData = {
+        name: formData.projectName.trim(),
+        repo_path: inputMethod === 'upload' ? selectedFile.name : formData.repoPath.trim(),
+        description: formData.description.trim() || `Git repository analysis for ${formData.projectName.trim()}`
+      };
+      
+      const project = await api.createProject(projectData);
+      setProjectId(project.id);
+      
+      setCurrentStep('analyzing');
+      setProgress({
+        message: 'Analyzing repository...',
+        details: 'Processing commits and calculating metrics'
+      });
+
+      if (inputMethod === 'upload') {
+        const uploadFormData = new FormData();
+        uploadFormData.append('project', selectedFile);
+        
+        const response = await fetch(process.env.REACT_APP_API_URL + `/api/v1/projects/${project.id}/upload`, {
+          method: 'POST',
+          body: uploadFormData,
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to upload project files');
+        }
+      }
+      
+      await api.analyzeProject(project.id);
+      
+      setCurrentStep('complete');
+      setProgress({
+        message: 'Analysis Started!',
+        details: 'Your repository is being analyzed in the background'
+      });
+
+    } catch (err) {
+      console.error('Analysis error:', err);
+      setError(err.response?.data?.error || err.message || 'Analysis failed. Please try again.');
+      setCurrentStep('input');
+      setProgress({ message: '', details: '' });
+    }
+  };
+
   if (currentStep !== 'input') {
     return (
-      <div className="px-4 sm:px-6 lg:px-8">
-        <div className="max-w-3xl mx-auto">
-          <div className="text-center">
-            <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-gray-100 mb-6">
-              {renderStepIcon()}
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 px-4 sm:px-6 lg:px-8 py-8">
+        <div className="max-w-4xl mx-auto">
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-2xl border border-white/50 overflow-hidden">
+            {/* Enhanced Progress Header */}
+            <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-8 py-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="text-2xl font-bold text-white">Repository Analysis</h1>
+                  <p className="text-blue-100 mt-1">Processing your repository for insights</p>
+                </div>
+                <div className="text-right">
+                  <div className="text-white/90 text-sm font-medium">
+                    {currentStep === 'creating' && 'Step 1 of 3'}
+                    {currentStep === 'analyzing' && 'Step 2 of 3'}
+                    {currentStep === 'complete' && 'Step 3 of 3'}
+                  </div>
+                  <div className="text-blue-100 text-xs mt-1">
+                    {currentStep === 'creating' && 'Setting up project'}
+                    {currentStep === 'analyzing' && 'Analyzing code'}
+                    {currentStep === 'complete' && 'Analysis complete'}
+                  </div>
+                </div>
+              </div>
             </div>
-            
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">
-              {progress.message}
-            </h1>
-            
-            <p className="text-gray-600 mb-8">
-              {progress.details}
-            </p>
 
-            {currentStep === 'analyzing' && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-8">
-                <div className="flex items-center justify-center space-x-2 mb-4">
-                  <ClockIcon className="h-5 w-5 text-blue-500 animate-spin" />
-                  <span className="text-blue-700 font-medium">Analysis in Progress</span>
+            {/* Main Content Area */}
+            <div className="px-8 py-8">
+              <div className="text-center bg-gradient-to-br from-gray-50 to-blue-50 rounded-xl p-8 border border-gray-200">
+                <div className={`
+                  mx-auto inline-flex items-center justify-center h-20 w-20 rounded-full mb-6
+                  transition-all duration-500 ease-in-out
+                  ${currentStep === 'complete' ? 'bg-green-100 animate-bounce' : 'bg-blue-100'}
+                `}>
+                  {renderStepIcon()}
                 </div>
-                <div className="w-full bg-blue-200 rounded-full h-2">
-                  <div className="bg-blue-600 h-2 rounded-full animate-pulse" style={{ width: '45%' }}></div>
-                </div>
-                <p className="text-blue-600 text-sm mt-2">
-                  Processing commits and file changes...
+                
+                <h2 className="text-2xl font-bold text-gray-900 mb-3">
+                  {progress.message}
+                </h2>
+                
+                <p className="text-gray-600 text-base mb-6 max-w-2xl mx-auto">
+                  {progress.details}
                 </p>
-              </div>
-            )}
 
-            {currentStep === 'complete' && (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-6 mb-8">
-                <CheckCircleIcon className="h-12 w-12 text-green-500 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-green-900 mb-2">
-                  Repository Analysis Complete!
-                </h3>
-                <p className="text-green-700">
-                  Your repository has been successfully analyzed. You can now explore insights, hotspots, and analytics.
-                </p>
-              </div>
-            )}
+                {/* Enhanced step-specific content */}
+                {currentStep === 'analyzing' && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 mb-6">
+                    <div className="flex items-center justify-center space-x-4 mb-4">
+                      <div className="relative">
+                        <div className="absolute inset-0 animate-ping bg-blue-400 rounded-full opacity-30"></div>
+                        <ClockIcon className="h-8 w-8 text-blue-500 animate-spin relative" />
+                      </div>
+                      <span className="text-blue-700 font-bold text-lg">Analysis in Progress</span>
+                    </div>
+                    
+                    <div className="w-full bg-blue-200 rounded-full h-4 mb-6 overflow-hidden">
+                      <div className="h-full bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 rounded-full animate-pulse" style={{width: '100%'}}></div>
+                    </div>
 
-            <div className="space-y-4">
-              {currentStep === 'complete' && (
-                <>
-                  <button
-                    onClick={handleViewProject}
-                    className="w-full flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                  >
-                    View Project Dashboard
-                  </button>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                      <div className="flex items-center justify-center space-x-2 bg-blue-100 rounded-lg p-3">
+                        <div className="h-3 w-3 bg-blue-500 rounded-full animate-pulse"></div>
+                        <span className="text-blue-700 font-medium text-xs">Scanning commits</span>
+                      </div>
+                      <div className="flex items-center justify-center space-x-2 bg-blue-100 rounded-lg p-3">
+                        <div className="h-3 w-3 bg-blue-500 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
+                        <span className="text-blue-700 font-medium text-xs">Processing changes</span>
+                      </div>
+                      <div className="flex items-center justify-center space-x-2 bg-blue-100 rounded-lg p-3">
+                        <div className="h-3 w-3 bg-blue-500 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
+                        <span className="text-blue-700 font-medium text-xs">Computing metrics</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {currentStep === 'complete' && (
+                  <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-xl p-8 mb-6 relative overflow-hidden">
+                    <div className="relative z-10">
+                      <div className="text-6xl mb-4">🎉</div>
+                      <h3 className="text-xl font-bold text-green-900 mb-4">
+                        Analysis Complete!
+                      </h3>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        <div className="bg-green-100 rounded-lg p-3">
+                          <div className="flex items-center space-x-2 text-green-700">
+                            <div className="h-3 w-3 bg-green-500 rounded-full"></div>
+                            <span className="font-semibold text-xs">Repository scanned</span>
+                          </div>
+                        </div>
+                        <div className="bg-green-100 rounded-lg p-3">
+                          <div className="flex items-center space-x-2 text-green-700">
+                            <div className="h-3 w-3 bg-green-500 rounded-full"></div>
+                            <span className="font-semibold text-xs">Analytics generated</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Celebration animation */}
+                    <div className="absolute inset-0 pointer-events-none">
+                      {[...Array(6)].map((_, i) => (
+                        <div
+                          key={i}
+                          className="absolute w-2 h-2 bg-green-400 rounded-full animate-bounce"
+                          style={{
+                            left: `${20 + i * 12}%`,
+                            top: `${30 + (i % 2) * 20}%`,
+                            animationDelay: `${i * 0.2}s`,
+                            animationDuration: '1s'
+                          }}
+                        ></div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Action buttons */}
+                <div className="space-y-4">
+                  {currentStep === 'complete' && (
+                    <div className="flex flex-wrap items-center justify-center gap-2">
+                      <button
+                        onClick={handleViewProject}
+                        className="inline-flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-lg text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl"
+                      >
+                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                        View Project Dashboard
+                      </button>
+                      
+                      <button
+                        onClick={handleAnalyzeAnother}
+                        className="inline-flex items-center justify-center px-8 py-3 border border-gray-300 text-base font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transform hover:scale-105 transition-all duration-200 shadow-md hover:shadow-lg"
+                      >
+                        <PlusIcon className="w-5 h-5 mr-2" />
+                        Analyze Another Repository
+                      </button>
+                    </div>
+                  )}
                   
                   <button
-                    onClick={handleAnalyzeAnother}
-                    className="w-full flex justify-center items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    onClick={() => navigate('/projects')}
+                    className="inline-flex items-center justify-center px-6 py-2 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200"
                   >
-                    Analyze Another Repository
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                    </svg>
+                    Back to Projects
                   </button>
-                </>
-              )}
-              
-              <button
-                onClick={() => navigate('/projects')}
-                className="w-full flex justify-center items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              >
-                Back to Projects
-              </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -279,208 +346,204 @@ const AnalyzeRepository = () => {
     );
   }
 
+  // Initial form view
   return (
-    <div className="px-4 sm:px-6 lg:px-8">
-      <div className="max-w-3xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-blue-100 mb-6">
-            <FolderIcon className="h-8 w-8 text-blue-600" />
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-slate-50 to-indigo-50 px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-4xl mx-auto">
+        {/* Enhanced Header */}
+        <div className="text-center mb-12">
+          <div className="mx-auto flex items-center justify-center h-20 w-20 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 mb-6 shadow-lg">
+            <FolderIcon className="h-10 w-10 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Analyze Repository
-          </h1>
-          <p className="text-lg text-gray-600">
-            Add a new Git repository for comprehensive code analysis
+          <h1 className="text-3xl font-bold text-gray-900 mb-4">Analyze Repository</h1>
+          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+            Add a Git repository for comprehensive analysis to gain deep insights about your codebase, 
+            hotspots, and team collaboration patterns.
           </p>
         </div>
 
-        {/* Form */}
-        <div className="bg-white shadow-lg rounded-lg p-6">
-          {/* Input Method Tabs */}
-          <div className="mb-6">
-            <div className="border-b border-gray-200">
-              <nav className="-mb-px flex space-x-8">
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-2xl border border-white/50 overflow-hidden">
+          <form onSubmit={handleAnalyzeRepository} className="p-8 space-y-8">
+            {/* Repository Input Method Selection */}
+            <div className="space-y-6">
+              <div className="text-center">
+                <h2 className="text-2xl font-semibold text-gray-900 mb-2">Choose Input Method</h2>
+                <p className="text-gray-600">How would you like to provide your repository?</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <button
                   type="button"
-                  onClick={() => handleMethodChange('url')}
-                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  className={`relative p-8 rounded-xl border-2 transition-all duration-300 focus:outline-none transform hover:scale-105 ${
                     inputMethod === 'url'
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      ? 'border-blue-500 bg-gradient-to-br from-blue-50 to-indigo-50 text-blue-700 shadow-lg scale-105'
+                      : 'border-gray-200 hover:border-gray-300 text-gray-700 hover:shadow-md'
                   }`}
+                  onClick={() => handleMethodChange('url')}
                 >
-                  <LinkIcon className="h-5 w-5 inline mr-2" />
-                  Git URL / Local Path
+                  <div className="flex flex-col items-center space-y-4">
+                    <div className={`p-4 rounded-full ${inputMethod === 'url' ? 'bg-blue-100' : 'bg-gray-100'}`}>
+                      <LinkIcon className="h-8 w-8" />
+                    </div>
+                    <div className="text-center">
+                      <h3 className="text-lg font-semibold mb-2">Git Repository URL</h3>
+                      <p className="text-sm text-gray-500">Connect directly to your Git repository</p>
+                      <div className="mt-3 text-xs bg-gray-100 rounded-lg px-3 py-2 text-gray-600">
+                        Supports GitHub, GitLab, Bitbucket & more
+                      </div>
+                    </div>
+                  </div>
+                  {inputMethod === 'url' && (
+                    <div className="absolute top-4 right-4">
+                      <CheckCircleIcon className="h-6 w-6 text-blue-500" />
+                    </div>
+                  )}
                 </button>
+                
                 <button
                   type="button"
-                  onClick={() => handleMethodChange('upload')}
-                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  className={`relative p-8 rounded-xl border-2 transition-all duration-300 focus:outline-none transform hover:scale-105 ${
                     inputMethod === 'upload'
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      ? 'border-blue-500 bg-gradient-to-br from-blue-50 to-indigo-50 text-blue-700 shadow-lg scale-105'
+                      : 'border-gray-200 hover:border-gray-300 text-gray-700 hover:shadow-md'
                   }`}
+                  onClick={() => handleMethodChange('upload')}
                 >
-                  <CloudArrowUpIcon className="h-5 w-5 inline mr-2" />
-                  Upload ZIP File
-                </button>
-              </nav>
-            </div>
-          </div>
-
-          <form onSubmit={handleAnalyzeRepository} className="space-y-6">
-            {/* Project Name */}
-            <div>
-              <label htmlFor="projectName" className="block text-sm font-medium text-gray-700 mb-2">
-                Project Name *
-              </label>
-              <input
-                type="text"
-                id="projectName"
-                name="projectName"
-                value={formData.projectName}
-                onChange={handleInputChange}
-                placeholder="e.g., My Awesome Project"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                required
-              />
-            </div>
-
-            {/* Conditional Input Based on Method */}
-            {inputMethod === 'url' ? (
-              /* Repository Path/URL */
-              <div>
-                <label htmlFor="repoPath" className="block text-sm font-medium text-gray-700 mb-2">
-                  Repository Path or URL *
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    {isGitUrl(formData.repoPath) ? (
-                      <LinkIcon className="h-5 w-5 text-gray-400" />
-                    ) : (
-                      <FolderIcon className="h-5 w-5 text-gray-400" />
-                    )}
+                  <div className="flex flex-col items-center space-y-4">
+                    <div className={`p-4 rounded-full ${inputMethod === 'upload' ? 'bg-blue-100' : 'bg-gray-100'}`}>
+                      <CloudArrowUpIcon className="h-8 w-8" />
+                    </div>
+                    <div className="text-center">
+                      <h3 className="text-lg font-semibold mb-2">Upload ZIP File</h3>
+                      <p className="text-sm text-gray-500">Upload your project as a ZIP archive</p>
+                      <div className="mt-3 text-xs bg-gray-100 rounded-lg px-3 py-2 text-gray-600">
+                        Up to 100MB • Preserves Git history
+                      </div>
+                    </div>
                   </div>
+                  {inputMethod === 'upload' && (
+                    <div className="absolute top-4 right-4">
+                      <CheckCircleIcon className="h-6 w-6 text-blue-500" />
+                    </div>
+                  )}
+                </button>
+              </div>
+
+              {error && (
+                <div className="rounded-xl bg-red-50 border border-red-200 p-6">
+                  <div className="flex items-start">
+                    <ExclamationTriangleIcon className="h-6 w-6 text-red-400 mt-0.5" />
+                    <div className="ml-3">
+                      <h3 className="text-sm font-medium text-red-800">Error</h3>
+                      <p className="text-sm text-red-700 mt-1">{error}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Form Fields */}
+              <div className="grid grid-cols-1 gap-6">
+                <div>
+                  <label htmlFor="projectName" className="block text-sm font-medium text-gray-700 mb-2">
+                    Project Name *
+                  </label>
                   <input
                     type="text"
-                    id="repoPath"
-                    name="repoPath"
-                    value={formData.repoPath}
+                    name="projectName"
+                    id="projectName"
+                    value={formData.projectName}
                     onChange={handleInputChange}
-                    placeholder="https://github.com/user/repo.git or /path/to/local/repo"
-                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    required
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+                    placeholder="Enter a descriptive name for your project"
                   />
                 </div>
-                <p className="mt-2 text-sm text-gray-500">
-                  Enter a GitHub/GitLab URL or local filesystem path to your Git repository
-                </p>
-              </div>
-            ) : (
-              /* File Upload */
-              <div>
-                <label htmlFor="projectFile" className="block text-sm font-medium text-gray-700 mb-2">
-                  Project ZIP File *
-                </label>
-                <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md hover:border-gray-400 transition-colors">
-                  <div className="space-y-1 text-center">
-                    <DocumentArrowUpIcon className="mx-auto h-12 w-12 text-gray-400" />
-                    <div className="flex text-sm text-gray-600">
-                      <label
-                        htmlFor="projectFile"
-                        className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500"
-                      >
-                        <span>Upload a ZIP file</span>
-                        <input
-                          id="projectFile"
-                          name="projectFile"
-                          type="file"
-                          accept=".zip"
-                          onChange={handleFileSelect}
-                          className="sr-only"
-                        />
-                      </label>
-                      <p className="pl-1">or drag and drop</p>
-                    </div>
-                    <p className="text-xs text-gray-500">ZIP files up to 100MB</p>
-                    {selectedFile && (
-                      <div className="mt-2 text-sm text-green-600">
-                        ✓ {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <p className="mt-2 text-sm text-gray-500">
-                  Upload a ZIP archive containing your Git repository (including .git folder)
-                </p>
-              </div>
-            )}
 
-            {/* Description */}
-            <div>
-              <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-2">
-                Description (Optional)
-              </label>
-              <textarea
-                id="description"
-                name="description"
-                value={formData.description}
-                onChange={handleInputChange}
-                rows={3}
-                placeholder="Brief description of the project..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-
-            {/* Error Message */}
-            {error && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <div className="flex items-center">
-                  <ExclamationTriangleIcon className="h-5 w-5 text-red-400 mr-2" />
-                  <span className="text-red-700 text-sm">{error}</span>
-                </div>
-              </div>
-            )}
-
-            {/* Info Box */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h3 className="text-sm font-medium text-blue-900 mb-2">What happens next?</h3>
-              <ul className="text-sm text-blue-700 space-y-1">
                 {inputMethod === 'url' ? (
-                  <>
-                    <li>• Repository will be validated and cloned (if remote)</li>
-                    <li>• Git history will be analyzed for commits and file changes</li>
-                    <li>• Code hotspots and metrics will be calculated</li>
-                    <li>• Analytics dashboard will be populated with insights</li>
-                  </>
+                  <div>
+                    <label htmlFor="repoPath" className="block text-sm font-medium text-gray-700 mb-2">
+                      Git Repository URL *
+                    </label>
+                    <input
+                      type="text"
+                      name="repoPath"
+                      id="repoPath"
+                      value={formData.repoPath}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+                      placeholder="https://github.com/username/repository.git"
+                    />
+                  </div>
                 ) : (
-                  <>
-                    <li>• ZIP file will be uploaded and extracted</li>
-                    <li>• Git history will be analyzed for commits and file changes</li>
-                    <li>• Code hotspots and metrics will be calculated</li>
-                    <li>• Analytics dashboard will be populated with insights</li>
-                  </>
+                  <div>
+                    <label htmlFor="project" className="block text-sm font-medium text-gray-700 mb-2">
+                      Project ZIP File *
+                    </label>
+                    <div className="relative">
+                      <div className="flex justify-center px-6 pt-8 pb-8 border-2 border-gray-300 border-dashed rounded-lg hover:border-gray-400 transition-colors bg-gray-50 hover:bg-gray-100">
+                        <div className="space-y-2 text-center">
+                          <DocumentArrowUpIcon className="mx-auto h-16 w-16 text-gray-400" />
+                          <div className="flex text-lg text-gray-600">
+                            <label
+                              htmlFor="project"
+                              className="relative cursor-pointer rounded-md font-medium text-blue-600 hover:text-blue-500 transition-colors"
+                            >
+                              <span>Upload a file</span>
+                              <input
+                                id="project"
+                                name="project"
+                                type="file"
+                                accept=".zip"
+                                className="sr-only"
+                                onChange={handleFileSelect}
+                              />
+                            </label>
+                            <p className="pl-1">or drag and drop</p>
+                          </div>
+                          <p className="text-sm text-gray-500">
+                            ZIP file up to 100MB
+                          </p>
+                          {selectedFile && (
+                            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                              <p className="text-sm text-blue-800 font-medium flex items-center">
+                                <DocumentArrowUpIcon className="h-4 w-4 mr-2" />
+                                Selected: {selectedFile.name}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 )}
-              </ul>
+
+                <div>
+                  <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-2">
+                    Description (Optional)
+                  </label>
+                  <textarea
+                    name="description"
+                    id="description"
+                    rows="4"
+                    value={formData.description}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+                    placeholder="Add a description for your project to help identify its purpose"
+                  />
+                </div>
+              </div>
             </div>
 
             {/* Submit Button */}
-            <div className="flex space-x-4">
-              <button
-                type="button"
-                onClick={() => navigate('/projects')}
-                className="flex-1 px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="flex-1 flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              >
-                <PlayIcon className="h-4 w-4 mr-2" />
-                {inputMethod === 'upload' ? 'Upload & Analyze' : 'Start Analysis'}
-              </button>
+            <div className="pt-6 border-t border-gray-200">
+              <div className="flex justify-center">
+                <button
+                  type="submit"
+                  className="inline-flex items-center px-8 py-4 border border-transparent text-lg font-medium rounded-xl text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl"
+                >
+                  <PlayIcon className="h-6 w-6 mr-3" />
+                  Start Analysis
+                </button>
+              </div>
             </div>
           </form>
         </div>

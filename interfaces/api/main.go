@@ -55,11 +55,15 @@ func main() {
 		api.GET("/ownership", handlers.GetOwnership)
 		api.GET("/projects/:id/author-hotspots", handlers.GetAuthorHotspots)
 		api.GET("/projects/:id/knowledge-risk", handlers.GetProjectKnowledgeRisk)
+		api.GET("/projects/:id/temporal-coupling", handlers.GetProjectTemporalCoupling)
+		api.GET("/projects/:id/file-types", handlers.GetProjectFileTypes)
+		api.GET("/temporal-coupling", handlers.GetTemporalCouplingFlat)
 		api.GET("/dashboard/stats", handlers.GetDashboardStats)
 
 		// Project Analysis
 		api.POST("/projects/:id/analyze", handlers.AnalyzeProject)
 		api.POST("/projects/:id/refresh", handlers.RefreshProjectAnalysis)
+		api.POST("/projects/:id/cancel-analysis", handlers.CancelAnalysis)
 		api.GET("/projects/:id/analysis-status", handlers.GetProjectAnalysisStatus)
 
 		// Project Upload

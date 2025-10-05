@@ -56,6 +56,25 @@ func (uc *AnalyticsUseCase) GetAuthorHotspots(projectID int) ([]models.AuthorHot
 	return hotspots, nil
 }
 
+// GetTemporalCoupling retrieves temporal coupling pairs for a project
+func (uc *AnalyticsUseCase) GetTemporalCoupling(projectID int, limit int, startDate, endDate string, minSharedCommits int, minCouplingScore float64, fileTypes string) ([]models.TemporalCoupling, error) {
+	pairs, err := uc.repo.GetTemporalCoupling(projectID, limit, startDate, endDate, minSharedCommits, minCouplingScore, fileTypes)
+	if err != nil {
+		return nil, err
+	}
+	// Additional business rules could be applied here (e.g., filtering by score threshold)
+	return pairs, nil
+}
+
+// GetProjectFileTypes retrieves available file types for a project
+func (uc *AnalyticsUseCase) GetProjectFileTypes(projectID int) ([]string, error) {
+	fileTypes, err := uc.repo.GetProjectFileTypes(projectID)
+	if err != nil {
+		return nil, err
+	}
+	return fileTypes, nil
+}
+
 // calculateRiskMetrics applies business logic for risk calculations
 func (uc *AnalyticsUseCase) calculateRiskMetrics(overview *models.ProjectOverview) {
 	// Calculate total hotspots based on high-risk components

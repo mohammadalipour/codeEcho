@@ -3,6 +3,7 @@ package repository
 import (
 	"codeecho/internal/models"
 	"database/sql"
+	"strings"
 	"time"
 )
 
@@ -271,4 +272,145 @@ func (r *AnalyticsRepository) GetAuthorHotspots(projectID int) ([]models.AuthorH
 	}
 
 	return hotspots, nil
+}
+
+// GetTemporalCoupling returns pairs of files that frequently change together within a project.
+// Coupling score heuristic: shared_commits / MIN(total_commits_a, total_commits_b)
+// Results are ordered by coupling_score DESC then shared_commits DESC.
+func (r *AnalyticsRepository) GetTemporalCoupling(projectID int, limit int, startDate, endDate string, minSharedCommits int, minCouplingScore float64, fileTypes string) ([]models.TemporalCoupling, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 100
+	}
+	if minSharedCommits <= 0 {
+		minSharedCommits = 2 // default threshold
+	}
+
+	// Build optional date predicates
+	dateFilter := ""
+	args := []interface{}{projectID}
+	if startDate != "" {
+		dateFilter += " AND c.timestamp >= ?"
+		args = append(args, startDate+" 00:00:00")
+	}
+	if endDate != "" {
+		dateFilter += " AND c.timestamp <= ?"
+		args = append(args, endDate+" 23:59:59")
+	}
+
+	// Build file type filter
+	fileTypeFilter := ""
+	if fileTypes != "" {
+		fileTypesParts := strings.Split(fileTypes, ",")
+		if len(fileTypesParts) > 0 {
+			fileTypeConditions := make([]string, len(fileTypesParts))
+			for i, ft := range fileTypesParts {
+				fileTypeConditions[i] = "ch.file_path LIKE ?"
+				args = append(args, "%."+strings.TrimSpace(ft))
+			}
+			fileTypeFilter = " AND (" + strings.Join(fileTypeConditions, " OR ") + ")"
+		}
+	}
+
+	query := `
+		WITH file_commits AS (
+			SELECT ch.file_path AS file_path, c.id AS commit_id, c.timestamp
+			FROM changes ch
+			JOIN commits c ON ch.commit_id = c.id
+			WHERE c.project_id = ?` + dateFilter + fileTypeFilter + `
+		), file_commit_counts AS (
+			SELECT file_path, COUNT(DISTINCT commit_id) AS total_commits, MAX(timestamp) AS last_modified
+			FROM file_commits
+			GROUP BY file_path
+		), pair_commits AS (
+			SELECT 
+				LEAST(a.file_path, b.file_path) AS file_a,
+				GREATEST(a.file_path, b.file_path) AS file_b,
+				COUNT(DISTINCT a.commit_id) AS shared_commits,
+				MAX(GREATEST(a.timestamp, b.timestamp)) AS last_modified
+			FROM file_commits a
+			JOIN file_commits b ON a.commit_id = b.commit_id AND a.file_path < b.file_path
+			GROUP BY file_a, file_b
+			HAVING shared_commits >= ?
+		)
+		SELECT 
+			p.file_a,
+			p.file_b,
+			p.shared_commits,
+			ca.total_commits AS total_commits_a,
+			cb.total_commits AS total_commits_b,
+			p.last_modified
+		FROM pair_commits p
+		JOIN file_commit_counts ca ON ca.file_path = p.file_a
+		JOIN file_commit_counts cb ON cb.file_path = p.file_b
+		WHERE (p.shared_commits / LEAST(ca.total_commits, cb.total_commits)) >= ?
+		ORDER BY (p.shared_commits / LEAST(ca.total_commits, cb.total_commits)) DESC, p.shared_commits DESC
+		LIMIT ?
+	`
+
+	// Append minSharedCommits, minCouplingScore, and limit arguments
+	args = append(args, minSharedCommits, minCouplingScore, limit)
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	results := make([]models.TemporalCoupling, 0)
+	for rows.Next() {
+		var tc models.TemporalCoupling
+		var lastModified string
+		err := rows.Scan(&tc.FileA, &tc.FileB, &tc.SharedCommits, &tc.TotalCommitsA, &tc.TotalCommitsB, &lastModified)
+		if err != nil {
+			continue
+		}
+		tc.LastModified = lastModified
+		// CouplingScore = shared / min(totalA,totalB)
+		minTotal := tc.TotalCommitsA
+		if tc.TotalCommitsB < minTotal {
+			minTotal = tc.TotalCommitsB
+		}
+		if minTotal > 0 {
+			tc.CouplingScore = float64(tc.SharedCommits) / float64(minTotal)
+		}
+		results = append(results, tc)
+	}
+
+	return results, nil
+}
+
+// GetProjectFileTypes returns available file extensions for a project
+func (r *AnalyticsRepository) GetProjectFileTypes(projectID int) ([]string, error) {
+	query := `
+		SELECT DISTINCT 
+			SUBSTRING_INDEX(ch.file_path, '.', -1) AS extension
+		FROM changes ch
+		JOIN commits c ON ch.commit_id = c.id
+		WHERE c.project_id = ? 
+			AND ch.file_path LIKE '%.%'
+			AND LENGTH(SUBSTRING_INDEX(ch.file_path, '.', -1)) <= 10
+			AND LENGTH(SUBSTRING_INDEX(ch.file_path, '.', -1)) > 0
+			AND SUBSTRING_INDEX(ch.file_path, '.', -1) NOT LIKE '%/%'
+		ORDER BY extension
+	`
+
+	rows, err := r.db.Query(query, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var fileTypes []string
+	for rows.Next() {
+		var ext string
+		err := rows.Scan(&ext)
+		if err != nil {
+			continue
+		}
+		// Add extension directly to list (already cleaned by SQL query)
+		if len(ext) > 0 && len(ext) <= 10 {
+			fileTypes = append(fileTypes, ext)
+		}
+	}
+
+	return fileTypes, nil
 }

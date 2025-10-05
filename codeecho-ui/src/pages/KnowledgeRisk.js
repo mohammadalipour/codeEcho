@@ -62,25 +62,7 @@ const KnowledgeRisk = () => {
       {/* Constrained width container */}
       <div className="max-w-6xl mx-auto">
         <div className="mb-8">
-        <div className="flex items-center justify-between mb-2">
-          {isProjectSpecific && (
-            <button
-              type="button"
-              onClick={() => {
-                // Prefer history back if available and previous page was inside app; fallback to project detail
-                if (window.history.length > 1) {
-                  navigate(-1);
-                } else {
-                  navigate(`/projects/${id}`);
-                }
-              }}
-              className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium group"
-            >
-              <span className="inline-block transition-transform group-hover:-translate-x-0.5">←</span>
-              <span>Back to Project</span>
-            </button>
-          )}
-        </div>
+        {/* Back button removed; navigation handled by persistent tabs */}
         <h1 className="text-2xl font-semibold text-gray-900">
           {isProjectSpecific 
             ? `Knowledge Risk Analysis - ${projectName}`

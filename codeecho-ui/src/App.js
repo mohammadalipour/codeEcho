@@ -4,11 +4,12 @@ import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import Projects from './pages/Projects';
 import ProjectDetail from './pages/ProjectDetail';
-import OverviewDashboard from './pages/OverviewDashboard';
 import HotspotTreemap from './pages/HotspotTreemap';
 import KnowledgeRisk from './pages/KnowledgeRisk';
+import TemporalCoupling from './pages/TemporalCoupling';
 import AnalyzeRepository from './pages/AnalyzeRepository';
 import { ApiProvider } from './services/ApiContext';
+import ProjectLayout from './components/ProjectLayout';
 
 function App() {
   return (
@@ -24,10 +25,12 @@ function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/projects" element={<Projects />} />
             <Route path="/projects/analyze" element={<AnalyzeRepository />} />
-            <Route path="/projects/:id" element={<ProjectDetail />} />
-            <Route path="/projects/:projectId/overview" element={<OverviewDashboard />} />
-            <Route path="/projects/:id/hotspots" element={<HotspotTreemap />} />
-            <Route path="/projects/:id/knowledge-risk" element={<KnowledgeRisk />} />
+            <Route path="/projects/:id/*" element={<ProjectLayout />}>
+              <Route index element={<ProjectDetail />} />
+              <Route path="hotspots" element={<HotspotTreemap />} />
+              <Route path="knowledge-risk" element={<KnowledgeRisk />} />
+              <Route path="temporal-coupling" element={<TemporalCoupling />} />
+            </Route>
             <Route path="/knowledge-risk" element={<KnowledgeRisk />} />
           </Routes>
         </Layout>
