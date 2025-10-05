@@ -24,6 +24,20 @@ var cache = &Cache{
 	data: make(map[string]interface{}),
 }
 
+// invalidateProjectCache removes cached analytics for a project
+func invalidateProjectCache(projectID int) {
+	keys := []string{
+		getCacheKey("commits", projectID),
+		getCacheKey("hotspots", projectID),
+		getCacheKey("stats", projectID),
+	}
+	cache.mu.Lock()
+	for _, k := range keys {
+		delete(cache.data, k)
+	}
+	cache.mu.Unlock()
+}
+
 // getCacheKey generates a cache key for the given prefix and ID
 func getCacheKey(prefix string, id int) string {
 	return fmt.Sprintf("%s_%d", prefix, id)
@@ -52,14 +66,22 @@ func GetProjectCommits(c *gin.Context) {
 		return
 	}
 
-	// Check cache first
+	noCache := c.Query("nocache") == "1"
 	cacheKey := getCacheKey("commits", id)
-	if cached, exists := cache.get(cacheKey); exists {
-		c.Header("X-Cache", "HIT")
-		c.JSON(http.StatusOK, cached)
-		return
+	if !noCache {
+		if cached, exists := cache.get(cacheKey); exists {
+			c.Header("X-Cache", "HIT")
+			c.JSON(http.StatusOK, cached)
+			return
+		}
 	}
-	c.Header("X-Cache", "MISS")
+	c.Header("X-Cache", func() string {
+		if noCache {
+			return "BYPASS"
+		} else {
+			return "MISS"
+		}
+	}())
 
 	// Get commits from database
 	commits, err := getProjectCommitsFromDB(id)
@@ -76,8 +98,9 @@ func GetProjectCommits(c *gin.Context) {
 		"commits":    commits,
 	}
 
-	// Cache the result
-	cache.set(cacheKey, result)
+	if !noCache {
+		cache.set(cacheKey, result)
+	}
 
 	c.JSON(http.StatusOK, result)
 }
@@ -105,14 +128,22 @@ func GetProjectHotspots(c *gin.Context) {
 		return
 	}
 
-	// Check cache first
+	noCache := c.Query("nocache") == "1"
 	cacheKey := getCacheKey("hotspots", id)
-	if cached, exists := cache.get(cacheKey); exists {
-		c.Header("X-Cache", "HIT")
-		c.JSON(http.StatusOK, cached)
-		return
+	if !noCache {
+		if cached, exists := cache.get(cacheKey); exists {
+			c.Header("X-Cache", "HIT")
+			c.JSON(http.StatusOK, cached)
+			return
+		}
 	}
-	c.Header("X-Cache", "MISS")
+	c.Header("X-Cache", func() string {
+		if noCache {
+			return "BYPASS"
+		} else {
+			return "MISS"
+		}
+	}())
 
 	// Get hotspots from database
 	hotspots, err := getProjectHotspotsFromDB(id)
@@ -129,8 +160,9 @@ func GetProjectHotspots(c *gin.Context) {
 		"hotspots":   hotspots,
 	}
 
-	// Cache the result
-	cache.set(cacheKey, result)
+	if !noCache {
+		cache.set(cacheKey, result)
+	}
 
 	c.JSON(http.StatusOK, result)
 }
@@ -143,14 +175,22 @@ func GetProjectStats(c *gin.Context) {
 		return
 	}
 
-	// Check cache first
+	noCache := c.Query("nocache") == "1"
 	cacheKey := getCacheKey("stats", id)
-	if cached, exists := cache.get(cacheKey); exists {
-		c.Header("X-Cache", "HIT")
-		c.JSON(http.StatusOK, cached)
-		return
+	if !noCache {
+		if cached, exists := cache.get(cacheKey); exists {
+			c.Header("X-Cache", "HIT")
+			c.JSON(http.StatusOK, cached)
+			return
+		}
 	}
-	c.Header("X-Cache", "MISS")
+	c.Header("X-Cache", func() string {
+		if noCache {
+			return "BYPASS"
+		} else {
+			return "MISS"
+		}
+	}())
 
 	// Get project statistics from database
 	stats, err := getProjectStatsFromDB(id)
@@ -167,8 +207,9 @@ func GetProjectStats(c *gin.Context) {
 		"stats":      stats,
 	}
 
-	// Cache the result
-	cache.set(cacheKey, result)
+	if !noCache {
+		cache.set(cacheKey, result)
+	}
 
 	c.JSON(http.StatusOK, result)
 }
@@ -467,6 +508,45 @@ func GetFileOwnership(c *gin.Context) {
 		"projectId":     id,
 		"fileOwnership": fileOwnership,
 	})
+}
+
+// GetOwnership (query-based) returns file ownership for a provided projectId via /ownership?projectId=ID
+// This is a lightweight wrapper around GetFileOwnership logic for frontend pages that expect a flat endpoint.
+func GetOwnership(c *gin.Context) {
+	projectIDStr := c.Query("projectId")
+	if projectIDStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "projectId query parameter is required"})
+		return
+	}
+	id, err := strconv.Atoi(projectIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid projectId"})
+		return
+	}
+
+	cacheKey := getCacheKey("file_ownership_flat", id)
+	if cached, exists := cache.get(cacheKey); exists {
+		c.Header("X-Cache", "HIT")
+		c.JSON(http.StatusOK, cached)
+		return
+	}
+	c.Header("X-Cache", "MISS")
+
+	repo := repository.NewAnalyticsRepository(database.DB)
+	useCase := analytics.NewAnalyticsUseCase(repo)
+	ownership, err := useCase.GetFileOwnership(id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to retrieve ownership", "detail": err.Error()})
+		return
+	}
+
+	// Transform to simpler shape matching /projects/:id/file-ownership but flat
+	result := gin.H{
+		"projectId":     id,
+		"fileOwnership": ownership,
+	}
+	cache.set(cacheKey, result)
+	c.JSON(http.StatusOK, result)
 }
 
 // GetAuthorHotspots returns author hotspot contribution data

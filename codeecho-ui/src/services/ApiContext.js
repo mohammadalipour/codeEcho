@@ -161,9 +161,9 @@ export const ApiProvider = ({ children }) => {
     },
 
     // Analytics
-    async getProjectCommits(projectId) {
+    async getProjectCommits(projectId, { noCache = false } = {}) {
       try {
-        const response = await api.get(`/projects/${projectId}/commits`);
+        const response = await api.get(`/projects/${projectId}/commits${noCache ? '?nocache=1' : ''}`);
         return response.data;
       } catch (error) {
         dispatch({ type: 'SET_ERROR', payload: error.message });
@@ -171,9 +171,39 @@ export const ApiProvider = ({ children }) => {
       }
     },
 
-    async getProjectHotspots(projectId) {
+    // List repositories (microservices) available for filtering
+    async getRepositories() {
       try {
-        const response = await api.get(`/projects/${projectId}/hotspots`);
+        const response = await api.get(`/repositories`);
+        // Expect response like { repositories: [] } or array fallback
+        return Array.isArray(response.data) ? response.data : (response.data.repositories || []);
+      } catch (error) {
+        dispatch({ type: 'SET_ERROR', payload: error.message });
+        throw error;
+      }
+    },
+
+    async getProjectHotspots(projectId, startDate = null, endDate = null, repository = null, path = null, metric = null, minComplexity = null, minChanges = null, fileTypes = null, riskLevel = null, { noCache = false } = {}) {
+      try {
+        let url = `/projects/${projectId}/hotspots`;
+        const params = new URLSearchParams();
+        
+        if (startDate) params.append('startDate', startDate);
+        if (endDate) params.append('endDate', endDate);
+        if (repository && repository !== 'all') params.append('repository', repository);
+        if (path && path.trim() !== '') params.append('path', path.trim());
+        if (metric) params.append('metric', metric);
+        if (minComplexity !== null && minComplexity !== undefined && minComplexity !== '') params.append('minComplexity', String(minComplexity));
+        if (minChanges !== null && minChanges !== undefined && Number(minChanges) > 0) params.append('minChanges', String(minChanges));
+        if (fileTypes && Array.isArray(fileTypes) && fileTypes.length > 0) params.append('fileTypes', fileTypes.join(','));
+        if (riskLevel && riskLevel !== 'all') params.append('riskLevel', riskLevel);
+        
+        if (params.toString()) url += `?${params.toString()}`;
+        
+        const sep = params.toString() ? '&' : '?';
+        if (noCache) url += `${params.toString() ? '' : '?'}${params.toString() ? '' : ''}nocache=1`;
+        else if (params.toString()) { /* already appended */ }
+        const response = await api.get(url);
         return response.data;
       } catch (error) {
         dispatch({ type: 'SET_ERROR', payload: error.message });
@@ -181,9 +211,9 @@ export const ApiProvider = ({ children }) => {
       }
     },
 
-    async getProjectStats(projectId) {
+    async getProjectStats(projectId, { noCache = false } = {}) {
       try {
-        const response = await api.get(`/projects/${projectId}/stats`);
+        const response = await api.get(`/projects/${projectId}/stats${noCache ? '?nocache=1' : ''}`);
         return response.data;
       } catch (error) {
         dispatch({ type: 'SET_ERROR', payload: error.message });
@@ -191,11 +221,42 @@ export const ApiProvider = ({ children }) => {
       }
     },
 
-    async getProjectKnowledgeRisk(projectId) {
+    async getProjectKnowledgeRisk(projectId, startDate = null, endDate = null) {
       try {
-        const response = await api.get(`/projects/${projectId}/knowledge-risk`);
+        let url = `/projects/${projectId}/knowledge-risk`;
+        const params = new URLSearchParams();
+        if (startDate) params.append('startDate', startDate);
+        if (endDate) params.append('endDate', endDate);
+        if (params.toString()) url += `?${params.toString()}`;
+        const response = await api.get(url);
         return response.data;
       } catch (error) {
+        dispatch({ type: 'SET_ERROR', payload: error.message });
+        throw error;
+      }
+    },
+
+    // New: File ownership raw endpoint (for dedicated Ownership page)
+    async getFileOwnership(projectId) {
+      try {
+        const response = await api.get(`/projects/${projectId}/file-ownership`);
+        return response.data; // { projectId, fileOwnership: [...] }
+      } catch (error) {
+        dispatch({ type: 'SET_ERROR', payload: error.message });
+        throw error;
+      }
+    },
+
+    // New generic ownership endpoint (/ownership?projectId=ID)
+    async getOwnership(projectId) {
+      try {
+        const response = await api.get(`/ownership`, { params: { projectId } });
+        return response.data; // { projectId, fileOwnership: [...] }
+      } catch (error) {
+        // Fallback silently to older endpoint if 404
+        if (error?.response?.status === 404) {
+          return this.getFileOwnership(projectId);
+        }
         dispatch({ type: 'SET_ERROR', payload: error.message });
         throw error;
       }

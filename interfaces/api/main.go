@@ -52,6 +52,7 @@ func main() {
 		api.GET("/projects/:id/stats", handlers.GetProjectStats)
 		api.GET("/projects/:id/overview", handlers.GetProjectOverview)
 		api.GET("/projects/:id/file-ownership", handlers.GetFileOwnership)
+		api.GET("/ownership", handlers.GetOwnership)
 		api.GET("/projects/:id/author-hotspots", handlers.GetAuthorHotspots)
 		api.GET("/projects/:id/knowledge-risk", handlers.GetProjectKnowledgeRisk)
 		api.GET("/dashboard/stats", handlers.GetDashboardStats)
@@ -63,6 +64,9 @@ func main() {
 
 		// Project Upload
 		api.POST("/projects/:id/upload", uploadHandler.UploadProject)
+
+		// Debug (optional) - raw counts for troubleshooting
+		api.GET("/projects/:id/debug/raw-counts", handlers.GetProjectRawCounts)
 	}
 
 	// Start server

@@ -15,3 +15,15 @@
   transform: translateY(-2px);
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
 }
+
+/* Animated number bump */
+@keyframes number-bump {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.18); }
+  70% { transform: scale(0.96); }
+  100% { transform: scale(1); }
+}
+
+.anim-bump {
+  animation: number-bump 420ms cubic-bezier(.34,1.56,.64,1);
+}

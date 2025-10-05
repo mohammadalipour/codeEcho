@@ -2,6 +2,7 @@ package git
 
 import (
 	"fmt"
+	"log"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -65,11 +66,14 @@ func (gs *GitServiceImpl) isValidGitURL(url string) bool {
 // CloneRepository clones a remote repository to a local temporary directory
 func (gs *GitServiceImpl) CloneRepository(repoURL string) (string, error) {
 	if !gs.isRemoteURL(repoURL) {
+		log.Printf("[git] Treating path as local repository: %s", repoURL)
 		return repoURL, nil // Already a local path
 	}
 
 	// Create a temporary directory
 	tempDir := filepath.Join("/tmp", "codeecho-repos", gs.getRepoNameFromURL(repoURL))
+
+	log.Printf("[git] Preparing clone target: %s (source: %s)", tempDir, repoURL)
 
 	// Remove existing directory if it exists
 	if _, err := os.Stat(tempDir); err == nil {
@@ -94,12 +98,15 @@ func (gs *GitServiceImpl) CloneRepository(repoURL string) (string, error) {
 	}
 
 	// Clone the repository
+	start := time.Now()
 	_, err := git.PlainClone(tempDir, false, cloneOptions)
 
 	if err != nil {
+		log.Printf("[git] Clone failed after %s: %v", time.Since(start), err)
 		return "", fmt.Errorf("failed to clone repository %s: %w", repoURL, err)
 	}
 
+	log.Printf("[git] Clone succeeded in %s: %s", time.Since(start), tempDir)
 	return tempDir, nil
 }
 
@@ -122,8 +129,16 @@ func (gs *GitServiceImpl) GetCommits(repoPath string) ([]*ports.GitCommit, error
 	if err != nil {
 		return nil, err
 	}
-
-	return gs.getCommitsFromHash(localPath, "")
+	commits, err := gs.getCommitsFromHash(localPath, "")
+	if err != nil {
+		return nil, err
+	}
+	if len(commits) == 0 {
+		log.Printf("[git] WARNING: zero commits discovered for repo path: %s (local: %s)", repoPath, localPath)
+	} else {
+		log.Printf("[git] Retrieved %d commits for repo: %s", len(commits), repoPath)
+	}
+	return commits, nil
 }
 
 // GetCommitsSince retrieves commits since a specific hash
@@ -133,8 +148,12 @@ func (gs *GitServiceImpl) GetCommitsSince(repoPath string, sinceHash string) ([]
 	if err != nil {
 		return nil, err
 	}
-
-	return gs.getCommitsFromHash(localPath, sinceHash)
+	commits, err := gs.getCommitsFromHash(localPath, sinceHash)
+	if err != nil {
+		return nil, err
+	}
+	log.Printf("[git] Retrieved %d commits since %s for repo: %s", len(commits), sinceHash, repoPath)
+	return commits, nil
 }
 
 // getCommitsFromHash is a helper method to get commits from a specific hash or from the beginning
@@ -152,6 +171,7 @@ func (gs *GitServiceImpl) getCommitsFromHash(repoPath string, fromHash string) (
 		if err != nil {
 			return nil, fmt.Errorf("failed to get HEAD reference: %w", err)
 		}
+		log.Printf("[git] Walking commits from HEAD: %s", ref.Hash())
 
 		commitIter, err = repo.Log(&git.LogOptions{From: ref.Hash()})
 		if err != nil {
@@ -170,6 +190,7 @@ func (gs *GitServiceImpl) getCommitsFromHash(repoPath string, fromHash string) (
 	var gitCommits []*ports.GitCommit
 	var skipFirst bool = fromHash != "" // Skip the first commit if we're getting commits since a hash
 
+	commitCounter := 0
 	err = commitIter.ForEach(func(commit *object.Commit) error {
 		if skipFirst {
 			skipFirst = false
@@ -191,11 +212,20 @@ func (gs *GitServiceImpl) getCommitsFromHash(repoPath string, fromHash string) (
 		}
 
 		gitCommits = append(gitCommits, gitCommit)
+		commitCounter++
 		return nil
 	})
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to iterate over commits: %w", err)
+	}
+
+	if commitCounter == 0 {
+		if fromHash == "" {
+			log.Printf("[git] No commits found from HEAD in %s", repoPath)
+		} else {
+			log.Printf("[git] No commits found since hash %s in %s", fromHash, repoPath)
+		}
 	}
 
 	return gitCommits, nil
@@ -262,6 +292,9 @@ func (gs *GitServiceImpl) getCommitChanges(commit *object.Commit) ([]*ports.GitC
 		}
 	}
 
+	if len(changes) == 0 {
+		log.Printf("[git] Commit %s produced zero file changes (possibly merge or empty commit?)", commit.Hash.String())
+	}
 	return changes, nil
 }
 

@@ -4,12 +4,14 @@ import {
   HomeIcon, 
   FolderIcon, 
   Bars3Icon,
-  XMarkIcon 
+  XMarkIcon
 } from '@heroicons/react/24/outline';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: HomeIcon },
   { name: 'Projects', href: '/projects', icon: FolderIcon },
+  // Added Analyze Repository direct link for easier access to analyze page
+  { name: 'Analyze', href: '/projects/analyze', icon: FolderIcon },
 ];
 
 const Layout = ({ children }) => {
@@ -17,7 +19,7 @@ const Layout = ({ children }) => {
   const location = useLocation();
 
   return (
-    <div className="flex h-screen bg-gray-50">
+  <div className="flex h-screen bg-gray-50 overflow-x-hidden">
       {/* Mobile sidebar */}
       <div className={`fixed inset-0 z-40 lg:hidden ${sidebarOpen ? '' : 'pointer-events-none'}`}>
         <div className={`fixed inset-0 bg-gray-600 bg-opacity-75 transition-opacity ${sidebarOpen ? 'opacity-100' : 'opacity-0'}`} onClick={() => setSidebarOpen(false)} />
@@ -68,7 +70,7 @@ const Layout = ({ children }) => {
         </div>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden">
           <div className="py-6">
             {children}
           </div>

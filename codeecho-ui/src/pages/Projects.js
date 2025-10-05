@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
+import { AnimatedNumber } from '../components/AnimatedNumber';
 import { Link } from 'react-router-dom';
 import { useApi } from '../services/ApiContext';
 import { 
@@ -21,33 +22,142 @@ const Projects = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState(null);
+  const [analyzingProjects, setAnalyzingProjects] = useState(new Set());
+  const [analysisStatus, setAnalysisStatus] = useState({}); // { projectId: { totalCommits, totalFiles, lastCommitDate } }
+  const [refreshingProjects, setRefreshingProjects] = useState(new Set());
+  const [analysisStartTimes, setAnalysisStartTimes] = useState({}); // { projectId: timestamp }
+  const [nowTick, setNowTick] = useState(Date.now());
+  const intervalRef = useRef(null); // project list polling
+  const statusIntervalRef = useRef(null); // per-project status polling
+  const elapsedIntervalRef = useRef(null); // elapsed time ticker
 
   useEffect(() => {
     api.getProjects().catch(console.error);
   }, []);
 
   useEffect(() => {
-    // After projects load, fetch stats per project in parallel
+    // Fetch stats for all projects (even if not yet fully analyzed) to reflect partial ingestion
     const fetchStats = async () => {
       if (!projects || projects.length === 0) return;
       const entries = await Promise.all(
         projects.map(async (p) => {
           try {
-            const res = await api.getProjectStats(p.id);
-            // API shape: { project_id, stats: { total_commits, lines_added, lines_deleted, ... } }
+            const noCache = !p.is_analyzed || refreshingProjects.has(p.id);
+            const res = await api.getProjectStats(p.id, { noCache });
             const stats = res?.stats || {};
+            const commits = stats.total_commits || 0;
             const changes = (stats.lines_added || 0) + (stats.lines_deleted || 0);
-            return [p.id, { commits: stats.total_commits || 0, changes }];
+            if (!p.is_analyzed && commits === 0 && changes === 0) {
+              return [p.id, { commits: '—', changes: '—' }];
+            }
+            return [p.id, { commits, changes }];
           } catch (e) {
-            return [p.id, { commits: 0, changes: 0 }];
+            const isAnalyzing = !p.is_analyzed;
+            return [p.id, { commits: isAnalyzing ? '—' : 0, changes: isAnalyzing ? '—' : 0 }];
           }
         })
       );
-      const dict = Object.fromEntries(entries);
-      setStatsByProject(dict);
+      setStatsByProject(Object.fromEntries(entries));
     };
     fetchStats();
+  }, [projects, api, refreshingProjects]);
+
+  // Auto-refresh logic for analyzing projects (stabilized to avoid infinite re-renders)
+  useEffect(() => {
+    if (projects.length === 0) return;
+
+    // Determine currently analyzing projects
+    const currentlyAnalyzing = new Set();
+    projects.forEach(p => { if (!p.is_analyzed) currentlyAnalyzing.add(p.id); });
+
+    // Update analysis start times only for newly added analyzing projects
+    setAnalysisStartTimes(prev => {
+      let changed = false;
+      const next = { ...prev };
+      currentlyAnalyzing.forEach(id => {
+        if (!next[id]) { next[id] = Date.now(); changed = true; }
+      });
+      return changed ? next : prev; // prevent state churn when unchanged
+    });
+
+    // Update analyzingProjects state only if membership changed
+    setAnalyzingProjects(prev => {
+      if (prev.size === currentlyAnalyzing.size) {
+        let identical = true;
+        for (const id of prev) { if (!currentlyAnalyzing.has(id)) { identical = false; break; } }
+        if (identical) return prev;
+      }
+      return currentlyAnalyzing;
+    });
+
+    const hasAnalyzing = currentlyAnalyzing.size > 0;
+
+    // Project list polling
+    if (hasAnalyzing && !intervalRef.current) {
+      intervalRef.current = setInterval(async () => {
+        try { await api.getProjects(); } catch { /* ignore */ }
+      }, 4000);
+    } else if (!hasAnalyzing && intervalRef.current) {
+      clearInterval(intervalRef.current); intervalRef.current = null;
+    }
+
+    // Per-project status polling
+    if (hasAnalyzing && !statusIntervalRef.current) {
+      statusIntervalRef.current = setInterval(async () => {
+        try {
+          const entries = await Promise.all(
+            Array.from(currentlyAnalyzing).map(async (id) => {
+              try { return [id, await api.getProjectAnalysisStatus(id)]; } catch { return [id, null]; }
+            })
+          );
+          setAnalysisStatus(prev => {
+            const next = { ...prev };
+            let changed = false;
+            entries.forEach(([pid, s]) => {
+              if (s) {
+                const existing = next[pid];
+                if (!existing || existing.totalCommits !== s.totalCommits || existing.totalFiles !== s.totalFiles || existing.lastCommitDate !== s.lastCommitDate) {
+                  next[pid] = {
+                    totalCommits: s.totalCommits,
+                    totalFiles: s.totalFiles,
+                    lastCommitDate: s.lastCommitDate
+                  };
+                  changed = true;
+                }
+              }
+            });
+            return changed ? next : prev;
+          });
+        } catch { /* ignore */ }
+      }, 3000);
+    } else if (!hasAnalyzing && statusIntervalRef.current) {
+      clearInterval(statusIntervalRef.current); statusIntervalRef.current = null; setAnalysisStatus({});
+    }
+
+    // Elapsed timer
+    if (hasAnalyzing && !elapsedIntervalRef.current) {
+      elapsedIntervalRef.current = setInterval(() => setNowTick(Date.now()), 1000);
+    } else if (!hasAnalyzing && elapsedIntervalRef.current) {
+      clearInterval(elapsedIntervalRef.current); elapsedIntervalRef.current = null;
+    }
+
+    return () => {
+      if (!hasAnalyzing) {
+        if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+        if (statusIntervalRef.current) { clearInterval(statusIntervalRef.current); statusIntervalRef.current = null; }
+        if (elapsedIntervalRef.current) { clearInterval(elapsedIntervalRef.current); elapsedIntervalRef.current = null; }
+      }
+    };
   }, [projects, api]);
+
+  const formatElapsed = (start) => {
+    if (!start) return '';
+    const secs = Math.floor((nowTick - start) / 1000);
+    if (secs < 60) return `${secs}s`;
+    const mins = Math.floor(secs / 60);
+    const rem = secs % 60;
+    return `${mins}m ${rem}s`;
+  };
 
   const handleEditProject = (project) => {
     setEditingProject(project);
@@ -61,11 +171,55 @@ const Projects = () => {
 
   const handleRefreshProject = async (project) => {
     try {
+      // Optimistically mark as refreshing
+      setRefreshingProjects(prev => new Set(prev).add(project.id));
+      const baselineStats = statsByProject[project.id];
+      const baselineCommits = typeof baselineStats?.commits === 'number' ? baselineStats.commits : null;
+      const baselineChanges = typeof baselineStats?.changes === 'number' ? baselineStats.changes : null;
       await api.refreshProjectAnalysis(project.id);
-      // Show a success message or toast notification here if desired
+      // Start temporary polling for updated stats (independent of analyzing state)
+      let attempts = 0;
+      const maxAttempts = 20; // ~60s if interval 3s
+      const interval = setInterval(async () => {
+        attempts++;
+        try {
+          const res = await api.getProjectStats(project.id, { noCache: true });
+          const s = res?.stats || {};
+          const commits = s.total_commits || 0;
+            const changes = (s.lines_added || 0) + (s.lines_deleted || 0);
+          const changed = (
+            (baselineCommits !== null && commits > baselineCommits) ||
+            (baselineChanges !== null && changes > baselineChanges) ||
+            (baselineCommits === null && commits > 0)
+          );
+          if (changed || attempts >= maxAttempts) {
+            clearInterval(interval);
+            setRefreshingProjects(prev => {
+              const next = new Set(prev);
+              next.delete(project.id);
+              return next;
+            });
+            // Force projects list refresh to ensure any last_analyzed_hash update is visible
+            api.getProjects().catch(() => {});
+          }
+        } catch (e) {
+          if (attempts >= maxAttempts) {
+            clearInterval(interval);
+            setRefreshingProjects(prev => {
+              const next = new Set(prev);
+              next.delete(project.id);
+              return next;
+            });
+          }
+        }
+      }, 3000);
     } catch (error) {
       console.error('Error refreshing project:', error);
-      // Show an error message or toast notification here if desired
+      setRefreshingProjects(prev => {
+        const next = new Set(prev);
+        next.delete(project.id);
+        return next;
+      });
     }
   };
 
@@ -151,13 +305,17 @@ const Projects = () => {
       ) : (
         <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {projects.map((project) => (
-            <ProjectCard 
-              key={project.id} 
-              project={project} 
+            <ProjectCard
+              key={project.id}
+              project={project}
               stats={statsByProject[project.id]}
+              isAnalyzing={analyzingProjects.has(project.id)}
+              analysisStatus={analysisStatus[project.id]}
+              elapsed={formatElapsed(analysisStartTimes[project.id])}
               onEdit={handleEditProject}
               onDelete={handleDeleteProject}
               onRefresh={handleRefreshProject}
+              refreshingProjects={refreshingProjects}
             />
           ))}
         </div>
@@ -222,9 +380,18 @@ const EmptyState = () => (
   </div>
 );
 
-const ProjectCard = ({ project, stats, onEdit, onDelete, onRefresh }) => {
-  const commits = stats?.commits ?? 0;
-  const changes = stats?.changes ?? 0;
+const ProjectCard = ({ project, stats, isAnalyzing, analysisStatus, elapsed, onEdit, onDelete, onRefresh, refreshingProjects }) => {
+  // Prefer live status commits if available while analyzing
+  const liveCommits = analysisStatus?.totalCommits;
+  const commits = isAnalyzing && typeof liveCommits === 'number'
+    ? liveCommits
+    : (stats?.commits ?? (isAnalyzing ? '—' : 0));
+  const changes = stats?.changes ?? (isAnalyzing ? '—' : 0);
+  
+  // Check if the project is in a "processing" state (analyzed but no stats yet)
+  const isProcessing = commits === 'Processing...' || changes === 'Processing...';
+  const isRefreshing = refreshingProjects?.has(project.id);
+  const showPlaceholder = isAnalyzing || isProcessing;
   
   const handleEditClick = (e) => {
     e.preventDefault();
@@ -245,10 +412,49 @@ const ProjectCard = ({ project, stats, onEdit, onDelete, onRefresh }) => {
   };
 
   return (
-    <div className="group relative bg-white overflow-hidden shadow rounded-lg hover:shadow-lg transition-shadow duration-200">
+    <div className={`group relative overflow-hidden shadow rounded-lg transition-all duration-300 ${
+      showPlaceholder 
+        ? 'bg-gradient-to-br from-gray-50 to-gray-100 shadow-md cursor-not-allowed transform scale-[0.98] border-2 border-gray-200' 
+        : 'bg-white hover:shadow-xl cursor-pointer hover:transform hover:scale-[1.02]'
+    }`}>
+      {/* Beautiful loading overlay for analyzing/processing projects */}
+      {showPlaceholder && (
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-50/90 to-indigo-50/90 backdrop-blur-sm flex items-center justify-center z-10">
+          <div className="flex flex-col items-center space-y-4 p-6">
+            <div className="relative">
+              <div className="animate-spin rounded-full h-12 w-12 border-4 border-gray-200"></div>
+              <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent absolute top-0 left-0"></div>
+              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+                <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
+              </div>
+            </div>
+            <div className="text-center space-y-2">
+              <h4 className="text-lg font-semibold text-gray-800 tracking-wide">
+                {isAnalyzing ? '🔍 Analyzing Repository' : '⚡ Processing Data'}
+              </h4>
+              <p className="text-sm text-gray-600 max-w-xs leading-relaxed">
+                {isAnalyzing
+                  ? `Scanning code & parsing commits${typeof liveCommits === 'number' ? ` • ${liveCommits} commits` : ''}`
+                  : isRefreshing
+                    ? 'Updating analysis with new commits'
+                    : 'Generating analytics and computing metrics'}
+              </p>
+              {(isAnalyzing || isRefreshing) && (
+                <p className="text-xs text-gray-500 mt-1">{isAnalyzing ? 'Elapsed: ' + elapsed : 'Updating...'}</p>
+              )}
+              <div className="flex justify-center space-x-1 pt-2">
+                <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{animationDelay: '0ms'}}></div>
+                <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{animationDelay: '150ms'}}></div>
+                <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{animationDelay: '300ms'}}></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
       <Link
-        to={`/projects/${project.id}`}
-        className="block p-6"
+        to={showPlaceholder ? '#' : `/projects/${project.id}`}
+        className={`block p-6 ${showPlaceholder ? 'pointer-events-none' : 'hover:bg-gray-50 transition-colors duration-200'}`}
       >
         <div className="flex items-center">
           <div className="flex-shrink-0">
@@ -282,18 +488,32 @@ const ProjectCard = ({ project, stats, onEdit, onDelete, onRefresh }) => {
         <div className="mt-4 flex justify-between items-center">
           <div className="flex space-x-4">
             <div className="text-sm">
-              <span className="font-medium text-gray-900">{commits}</span>
+              {typeof commits === 'number' ? (
+                <AnimatedNumber value={commits} className="font-medium text-gray-900" />
+              ) : (
+                <span className="font-medium text-gray-900">{commits}</span>
+              )}
               <span className="text-gray-500 ml-1">commits</span>
             </div>
             <div className="text-sm">
-              <span className="font-medium text-gray-900">{changes}</span>
+              {typeof changes === 'number' ? (
+                <AnimatedNumber value={changes} className="font-medium text-gray-900" />
+              ) : (
+                <span className="font-medium text-gray-900">{changes}</span>
+              )}
               <span className="text-gray-500 ml-1">changes</span>
             </div>
           </div>
           {project.is_analyzed ? (
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-              Active
-            </span>
+            isRefreshing ? (
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                <ClockIcon className="h-3 w-3 mr-1 animate-spin" /> Updating
+              </span>
+            ) : (
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                Active
+              </span>
+            )
           ) : (
             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
               <ClockIcon className="h-3 w-3 mr-1 animate-spin" />

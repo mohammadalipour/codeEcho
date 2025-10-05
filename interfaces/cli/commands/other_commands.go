@@ -4,9 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"codeecho/infrastructure/analyzer"
 	"codeecho/infrastructure/database"
-	"codeecho/infrastructure/git"
 	"codeecho/infrastructure/persistence/mysql"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -70,19 +68,11 @@ func runHotspots(cmd *cobra.Command, args []string) error {
 	database.DB = db
 
 	// Initialize repositories
-	projectRepo := mysql.NewProjectRepository(db)
 	changeRepo := mysql.NewChangeRepository(db)
 
-	// Initialize Git service (even though we won't use it for hotspots)
-	gitService := git.NewGitService()
-
-	// Initialize analyzer
-	repositoryAnalyzer := analyzer.NewRepositoryAnalyzer(gitService, projectRepo, db)
-	repositoryAnalyzer.SetChangeRepository(changeRepo)
-
-	// Get hotspots
+	// Get hotspots using the repository method
 	fmt.Println("Retrieving code hotspots...")
-	hotspots, err := repositoryAnalyzer.GetHotspots(projectID, 20) // Top 20 hotspots
+	hotspots, err := changeRepo.GetHotspots(projectID, 20) // Top 20 hotspots
 	if err != nil {
 		return fmt.Errorf("failed to get hotspots: %w", err)
 	}

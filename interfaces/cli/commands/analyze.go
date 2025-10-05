@@ -5,9 +5,8 @@ import (
 	"fmt"
 
 	"codeecho/application/usecases/analysis"
-	"codeecho/infrastructure/analyzer"
+	"codeecho/domain/entities"
 	"codeecho/infrastructure/database"
-	"codeecho/infrastructure/git"
 	"codeecho/infrastructure/persistence/mysql"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -58,16 +57,6 @@ func runAnalyze(cmd *cobra.Command, args []string) error {
 
 	// Initialize repositories
 	projectRepo := mysql.NewProjectRepository(db)
-	commitRepo := mysql.NewCommitRepository(db)
-	changeRepo := mysql.NewChangeRepository(db)
-
-	// Initialize Git service
-	gitService := git.NewGitService()
-
-	// Initialize analyzer with all dependencies
-	repositoryAnalyzer := analyzer.NewRepositoryAnalyzer(gitService, projectRepo, db)
-	repositoryAnalyzer.SetCommitRepository(commitRepo)
-	repositoryAnalyzer.SetChangeRepository(changeRepo)
 
 	// Initialize use case
 	analysisUseCase := analysis.NewProjectAnalysisUseCase(projectRepo)
@@ -80,26 +69,28 @@ func runAnalyze(cmd *cobra.Command, args []string) error {
 
 	fmt.Println("Repository validation successful")
 
-	// Perform analysis
-	fmt.Println("Starting repository analysis...")
-	result, err := repositoryAnalyzer.AnalyzeRepository(projectName, repoPath)
+	// Create or get project
+	fmt.Println("Setting up project...")
+	project, err := projectRepo.GetByName(projectName)
 	if err != nil {
+		// Project doesn't exist, create it
+		project = entities.NewProject(projectName, repoPath)
+		if err := projectRepo.Create(project); err != nil {
+			return fmt.Errorf("failed to create project: %w", err)
+		}
+		fmt.Printf("Created new project: %s (ID: %d)\n", project.Name, project.ID)
+	} else {
+		fmt.Printf("Using existing project: %s (ID: %d)\n", project.Name, project.ID)
+	}
+
+	// Perform analysis using the use case
+	fmt.Println("Starting repository analysis...")
+	if err := analysisUseCase.AnalyzeRepository(project.ID, repoPath); err != nil {
 		return fmt.Errorf("analysis failed: %w", err)
 	}
 
-	// Display results
-	fmt.Println("\n=== Analysis Results ===")
-	fmt.Printf("Project: %s (ID: %d)\n", result.Project.Name, result.Project.ID)
-	fmt.Printf("Repository Path: %s\n", result.Project.RepoPath)
-	fmt.Printf("Commits Processed: %d\n", result.CommitCount)
-	fmt.Printf("File Changes: %d\n", result.ChangeCount)
-	fmt.Printf("Unique Files: %d\n", result.FileCount)
-	if result.ErrorCount > 0 {
-		fmt.Printf("Errors Encountered: %d\n", result.ErrorCount)
-	}
-
 	fmt.Println("\nAnalysis completed successfully!")
-	fmt.Printf("You can now view hotspots with: ./codeecho-cli hotspots --project-id %d\n", result.Project.ID)
+	fmt.Printf("You can now view hotspots with: ./codeecho-cli hotspots --project-id %d\n", project.ID)
 
 	return nil
 }

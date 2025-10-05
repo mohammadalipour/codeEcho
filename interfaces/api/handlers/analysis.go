@@ -51,6 +51,8 @@ func AnalyzeProject(c *gin.Context) {
 			// TODO: Update project status to indicate failure
 		} else {
 			log.Printf("Analysis completed successfully for project %d", id)
+			// Invalidate cached analytics so UI reflects new data
+			invalidateProjectCache(id)
 		}
 	}()
 
@@ -94,8 +96,9 @@ func RefreshProjectAnalysis(c *gin.Context) {
 	// Start refresh analysis in background
 	go func() {
 		if err := analysisUseCase.AnalyzeRepository(id, project.RepoPath); err != nil {
-			// Log error - in a real application, you might want to update a job status table
 			// log.Printf("Refresh analysis failed for project %d: %v", id, err)
+		} else {
+			invalidateProjectCache(id)
 		}
 	}()
 

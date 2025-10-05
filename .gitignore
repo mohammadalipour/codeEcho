@@ -83,3 +83,14 @@ coverage.html
 test.db
 *.sqlite
 *.sqlite3
+
+codeecho-ui/node_modules/
+codeecho-ui/dist/
+codeecho-ui/build/
+codeecho-ui/.env.local
+codeecho-ui/.env.*.local
+codeecho-ui/.DS_Store
+
+# Node.js dependencies (generic)
+node_modules/
+**/node_modules/

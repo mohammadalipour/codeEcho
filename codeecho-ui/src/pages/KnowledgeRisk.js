@@ -1,25 +1,37 @@
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useApi } from '../services/ApiContext';
 import KnowledgeRiskView from '../components/KnowledgeRiskView';
 
 const KnowledgeRisk = () => {
   const { id } = useParams();
-  const { api } = useApi();
+  const navigate = useNavigate();
+  const { api, projects } = useApi();
   const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [allProjects, setAllProjects] = useState([]);
+  const isProjectSpecific = !!id;
 
   useEffect(() => {
-    const loadProject = async () => {
-      if (!id) {
-        setLoading(false);
+    const load = async () => {
+      if (!isProjectSpecific) {
+        // Generic page: load project list
+        try {
+          setLoading(true); setError(null);
+          const data = await api.getProjects();
+          const list = data.projects || [];
+            setAllProjects(list);
+        } catch (e) {
+          setError('Failed to load projects');
+        } finally {
+          setLoading(false);
+        }
         return;
       }
-
+      // Project specific
       try {
-        setLoading(true);
-        setError(null);
+        setLoading(true); setError(null);
         const projectData = await api.getProject(id);
         setProject(projectData);
       } catch (err) {
@@ -29,9 +41,10 @@ const KnowledgeRisk = () => {
         setLoading(false);
       }
     };
+    load();
+  }, [id, api, isProjectSpecific]);
 
-    loadProject();
-  }, [id, api]);
+  const projectName = project?.name || (id ? `Project ${id}` : '');
 
   if (loading) {
     return (
@@ -44,88 +57,97 @@ const KnowledgeRisk = () => {
     );
   }
 
-  const isProjectSpecific = !!id;
-  const projectName = project?.name || `Project ${id}`;
-
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8">
-      <div className="mb-8">
+      {/* Constrained width container */}
+      <div className="max-w-6xl mx-auto">
+        <div className="mb-8">
+        <div className="flex items-center justify-between mb-2">
+          {isProjectSpecific && (
+            <button
+              type="button"
+              onClick={() => {
+                // Prefer history back if available and previous page was inside app; fallback to project detail
+                if (window.history.length > 1) {
+                  navigate(-1);
+                } else {
+                  navigate(`/projects/${id}`);
+                }
+              }}
+              className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium group"
+            >
+              <span className="inline-block transition-transform group-hover:-translate-x-0.5">←</span>
+              <span>Back to Project</span>
+            </button>
+          )}
+        </div>
         <h1 className="text-2xl font-semibold text-gray-900">
           {isProjectSpecific 
             ? `Knowledge Risk Analysis - ${projectName}`
-            : 'Knowledge Risk Analysis Demo'
-          }
+            : 'Knowledge Risk Analysis'}
         </h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <p className="mt-1 text-sm text-gray-500 max-w-3xl">
           {isProjectSpecific
-            ? `Analyze file ownership patterns and identify knowledge concentration risks for ${projectName}`
-            : 'Analyze file ownership patterns and identify knowledge concentration risks'
-          }
+            ? `Ownership concentration, author activity, and bus factor indicators for ${projectName}`
+            : 'Select a project below to analyze ownership concentration, author activity, and bus factor indicators.'}
         </p>
-        
+
+        {!isProjectSpecific && (
+          <div className="mt-5 bg-white border border-gray-200 rounded-lg p-4">
+            <h2 className="text-sm font-medium text-gray-700 mb-3">Choose a Project</h2>
+            {error && (
+              <div className="mb-3 text-xs text-red-600">{error}</div>
+            )}
+            {allProjects.length === 0 && !error && (
+              <div className="text-xs text-gray-500">No projects found. Create or analyze a project first.</div>
+            )}
+            <ul className="divide-y divide-gray-100 max-h-72 overflow-auto text-sm">
+              {allProjects.map(p => (
+                <li key={p.id}>
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/projects/${p.id}/knowledge-risk`)}
+                    className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center justify-between"
+                  >
+                    <span className="truncate font-medium text-gray-800">{p.name}</span>
+                    <span className="text-[11px] text-gray-500 ml-4">ID {p.id}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {/* Knowledge Ownership Definition */}
-        <div className="mt-4 bg-purple-50 border border-purple-200 rounded-md p-4">
-          <div className="flex">
-            <div className="ml-3">
-              <h3 className="text-sm font-medium text-purple-800">What is Knowledge Ownership?</h3>
-              <div className="mt-2 text-sm text-purple-700">
-                <p>
-                  The measure of how much knowledge about a code area is concentrated in a single developer (high ownership) 
-                  or spread across many developers (low ownership). Both extremes can be problematic.
-                </p>
-              </div>
+        <div className="mt-6 bg-purple-50 border border-purple-200 rounded-md p-4">
+          <h3 className="text-sm font-medium text-purple-800 mb-1">What is Knowledge Ownership?</h3>
+          <p className="text-sm text-purple-700 leading-relaxed">
+            Knowledge ownership reflects how concentrated understanding of a code area is. Extremely high concentration (one
+            person knows everything) creates risk. Extremely low concentration (too many casual editors) can also dilute accountability.
+            Aim for balanced distribution with redundancy for critical modules.
+          </p>
+        </div>
+        </div>
+
+        {isProjectSpecific && (
+          <KnowledgeRiskView 
+            projectId={id}
+            className="mb-10"
+          />
+        )}
+
+        {!isProjectSpecific && (
+          <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-6">
+            <h3 className="text-lg font-medium text-blue-900 mb-3">How to Use</h3>
+            <div className="space-y-2 text-sm text-blue-800">
+              <div>• <strong>Select a Project:</strong> Pick one to view ownership, risk levels, and activity metrics</div>
+              <div>• <strong>Filters:</strong> Narrow by owner, path, risk, ownership %, or number of authors</div>
+              <div>• <strong>Bus Factor:</strong> Estimated minimum people retaining ≥60% cumulative knowledge</div>
+              <div>• <strong>Hotspots & Authors:</strong> Use chart to see concentration of activity</div>
+              <div>• <strong>Goal:</strong> Spot fragile high-ownership areas and under-owned critical paths</div>
             </div>
           </div>
-        </div>
-      </div>
-
-      {error && (
-        <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <div className="ml-3">
-              <h3 className="text-sm font-medium text-yellow-800">
-                {isProjectSpecific ? 'Project Data Unavailable' : 'Demo Mode'}
-              </h3>
-              <div className="mt-2 text-sm text-yellow-700">
-                <p>{isProjectSpecific 
-                  ? `${error}. The analysis shows mock data for demonstration.`
-                  : 'This project hasn\'t been analyzed yet. The analysis shows mock data for demonstration.'
-                }</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <KnowledgeRiskView 
-        projectId={id || "demo-project"}
-        className="mb-8"
-      />
-
-      {/* Usage instructions */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-        <h3 className="text-lg font-medium text-blue-900 mb-3">How to Use</h3>
-        <div className="space-y-2 text-sm text-blue-800">
-          <div>• <strong>Sortable Table:</strong> Click column headers to sort by File Path, Author, or Contribution %</div>
-          <div>• <strong>Knowledge Loss Risk Filter:</strong> Toggle to show only files where top 2 authors own &gt;90% of code</div>
-          <div>• <strong>Risk Indicators:</strong> Color-coded badges show risk levels (High/Medium/Low)</div>
-          <div>• <strong>Author Hotspots Chart:</strong> Shows top 5 authors by recent hotspot contributions</div>
-          <div>• <strong>Summary Stats:</strong> Quick overview of files, risks, and author activity</div>
-        </div>
-        
-        <div className="mt-4 pt-4 border-t border-blue-200">
-          <h4 className="font-medium text-blue-900 mb-2">Risk Assessment Logic:</h4>
-          <div className="text-sm text-blue-800 space-y-1">
-            <div>• <span className="font-medium text-red-700">High Risk:</span> Top 2 authors contribute &gt;90% of code</div>
-            <div>• <span className="font-medium text-yellow-700">Medium Risk:</span> Top 2 authors contribute 70-90% of code</div>
-            <div>• <span className="font-medium text-green-700">Low Risk:</span> Top 2 authors contribute &lt;70% of code</div>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );

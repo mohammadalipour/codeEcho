@@ -287,20 +287,6 @@ const ProjectDetail = () => {
         </div>
       </div>
 
-      {/* API Status Note */}
-      <div className="mt-8 bg-yellow-50 border border-yellow-200 rounded-md p-4">
-        <div className="flex">
-          <div className="ml-3">
-            <h3 className="text-sm font-medium text-yellow-800">Demo Mode</h3>
-            <div className="mt-2 text-sm text-yellow-700">
-              <p>
-                This page shows mock data for demonstration. Once you analyze repositories 
-                using the CLI, real data will be displayed here.
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   );
 };
