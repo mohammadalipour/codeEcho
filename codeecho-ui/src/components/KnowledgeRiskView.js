@@ -62,7 +62,7 @@ const KnowledgeRiskView = ({ projectId, className = "" }) => {
   const [minOwnership, setMinOwnership] = useState(0);
   const [maxAuthors, setMaxAuthors] = useState('');
   // Column visibility (optional columns)
-  const [visibleCols, setVisibleCols] = useState({ authorsCount: true, busFactor: true, lastModified: true });
+  const [visibleCols, setVisibleCols] = useState({ authorsCount: true, busFactor: false, lastModified: true });
   const [showColumnMenu, setShowColumnMenu] = useState(false);
   const [density, setDensity] = useState('comfortable'); // 'comfortable' | 'compact'
   // Pagination

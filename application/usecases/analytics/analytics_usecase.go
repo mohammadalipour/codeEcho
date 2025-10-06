@@ -3,6 +3,7 @@ package analytics
 import (
 	"codeecho/application/ports"
 	"codeecho/internal/models"
+	"time"
 )
 
 // AnalyticsUseCase handles analytics-related business logic
@@ -123,4 +124,9 @@ func (uc *AnalyticsUseCase) analyzeHotspots(hotspots []models.AuthorHotspot) {
 			hotspot.Hotspots = 20 // Cap at 20
 		}
 	}
+}
+
+// GetBusFactorAnalysis retrieves bus factor analysis for all files in a project
+func (uc *AnalyticsUseCase) GetBusFactorAnalysis(projectID int, startDate, endDate *time.Time, repository, path string) ([]models.BusFactorData, error) {
+	return uc.repo.GetBusFactorAnalysis(projectID, startDate, endDate, repository, path)
 }

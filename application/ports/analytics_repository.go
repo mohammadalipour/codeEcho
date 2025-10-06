@@ -1,6 +1,9 @@
 package ports
 
-import "codeecho/internal/models"
+import (
+	"codeecho/internal/models"
+	"time"
+)
 
 // AnalyticsRepository interface defines the contract for analytics data access
 type AnalyticsRepository interface {
@@ -15,4 +18,6 @@ type AnalyticsRepository interface {
 	GetTemporalCoupling(projectID int, limit int, startDate, endDate string, minSharedCommits int, minCouplingScore float64, fileTypes string) ([]models.TemporalCoupling, error)
 	// GetProjectFileTypes returns available file extensions for a project
 	GetProjectFileTypes(projectID int) ([]string, error)
+	// GetBusFactorAnalysis returns bus factor data for all files in a project
+	GetBusFactorAnalysis(projectID int, startDate, endDate *time.Time, repository, path string) ([]models.BusFactorData, error)
 }

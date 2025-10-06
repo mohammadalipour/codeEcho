@@ -192,6 +192,11 @@ func (r *AnalyticsRepository) GetFileOwnership(projectID int) ([]models.FileOwne
 			totalChanges += contrib.Changes
 		}
 
+		// Skip files with no changes to avoid division by zero
+		if totalChanges == 0 {
+			continue
+		}
+
 		// Calculate ownership percentages
 		for i := range contributions {
 			contributions[i].Percentage = float64(contributions[i].Changes) / float64(totalChanges) * 100
@@ -413,4 +418,96 @@ func (r *AnalyticsRepository) GetProjectFileTypes(projectID int) ([]string, erro
 	}
 
 	return fileTypes, nil
+}
+
+// GetBusFactorAnalysis calculates bus factor data for all files in a project
+func (r *AnalyticsRepository) GetBusFactorAnalysis(projectID int, startDate, endDate *time.Time, repository, path string) ([]models.BusFactorData, error) {
+	// Build the SQL query with optional filters
+	query := `
+		SELECT 
+			c.file_path,
+			COUNT(*) as total_commits,
+			co.author,
+			COUNT(*) as author_commits,
+			(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (PARTITION BY c.file_path)) as ownership_percent,
+			MAX(co.timestamp) as last_modified
+		FROM changes c
+		JOIN commits co ON c.commit_id = co.id
+		WHERE co.project_id = ?`
+
+	args := []interface{}{projectID}
+
+	// Add optional date filters
+	if startDate != nil {
+		query += " AND co.timestamp >= ?"
+		args = append(args, startDate.Format("2006-01-02"))
+	}
+	if endDate != nil {
+		query += " AND co.timestamp <= ?"
+		args = append(args, endDate.Format("2006-01-02"))
+	}
+
+	// Add optional path filter
+	if path != "" {
+		query += " AND c.file_path LIKE ?"
+		args = append(args, path+"%")
+	}
+
+	// Repository filter (not used in current schema but kept for future)
+	if repository != "" {
+		// Could filter by project name or add repository field later
+	}
+
+	query += `
+		GROUP BY c.file_path, co.author
+		ORDER BY c.file_path, ownership_percent DESC`
+
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	// Group results by file
+	fileData := make(map[string]*models.BusFactorData)
+
+	for rows.Next() {
+		var filePath, author string
+		var totalCommits, authorCommits int
+		var ownershipPercent float64
+		var lastModified time.Time
+
+		err := rows.Scan(&filePath, &totalCommits, &author, &authorCommits, &ownershipPercent, &lastModified)
+		if err != nil {
+			continue
+		}
+
+		// Initialize file data if not exists
+		if fileData[filePath] == nil {
+			fileData[filePath] = &models.BusFactorData{
+				FilePath:              filePath,
+				TotalCommits:          totalCommits,
+				OwnershipDistribution: make([]models.AuthorOwnership, 0),
+				LastModified:          &lastModified,
+			}
+		}
+
+		// Add author ownership
+		fileData[filePath].OwnershipDistribution = append(
+			fileData[filePath].OwnershipDistribution,
+			models.AuthorOwnership{
+				Author:           author,
+				Commits:          authorCommits,
+				OwnershipPercent: ownershipPercent,
+			},
+		)
+	}
+
+	// Convert map to slice
+	result := make([]models.BusFactorData, 0, len(fileData))
+	for _, data := range fileData {
+		result = append(result, *data)
+	}
+
+	return result, nil
 }

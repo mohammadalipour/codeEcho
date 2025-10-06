@@ -9,7 +9,9 @@ const tabs = (projectId) => [
   { key: 'overview', label: 'Overview', to: `/projects/${projectId}` },
   { key: 'hotspots', label: 'Hotspots', to: `/projects/${projectId}/hotspots` },
   { key: 'knowledge-risk', label: 'Knowledge Risk', to: `/projects/${projectId}/knowledge-risk` },
+  { key: 'knowledge-ownership', label: 'Knowledge Ownership', to: `/projects/${projectId}/knowledge-ownership` },
   { key: 'temporal-coupling', label: 'Temporal Coupling', to: `/projects/${projectId}/temporal-coupling` },
+  { key: 'bus-factor', label: 'Bus Factor', to: `/projects/${projectId}/bus-factor` },
 ];
 
 const ProjectSectionNav = ({ projectId, className = '', enhanced = false }) => {

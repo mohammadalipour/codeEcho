@@ -322,6 +322,19 @@ export const ApiProvider = ({ children }) => {
         throw error;
       }
     },
+
+    // Bus Factor Analysis
+    async getProjectBusFactor(projectId, queryParams = '') {
+      try {
+        let url = `/projects/${projectId}/bus-factor`;
+        if (queryParams) url += `?${queryParams}`;
+        const response = await api.get(url);
+        return response.data; // { project_id, summary: {...}, files: [...] }
+      } catch (error) {
+        dispatch({ type: 'SET_ERROR', payload: error.message });
+        throw error;
+      }
+    },
   }), [dispatch]);
 
   return (

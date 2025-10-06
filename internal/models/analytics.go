@@ -1,5 +1,7 @@
 package models
 
+import "time"
+
 // ProjectOverview represents the project overview data for the dashboard
 type ProjectOverview struct {
 	ProjectID          int              `json:"projectId"`
@@ -82,4 +84,19 @@ type TemporalCoupling struct {
 	TotalCommitsB int     `json:"total_commits_b"`
 	CouplingScore float64 `json:"coupling_score"`
 	LastModified  string  `json:"last_modified"`
+}
+
+// BusFactorData represents bus factor analysis data for a single file
+type BusFactorData struct {
+	FilePath              string            `json:"file_path"`
+	TotalCommits          int               `json:"total_commits"`
+	OwnershipDistribution []AuthorOwnership `json:"ownership_distribution"`
+	LastModified          *time.Time        `json:"last_modified"`
+}
+
+// AuthorOwnership represents an author's ownership of a file
+type AuthorOwnership struct {
+	Author           string  `json:"author"`
+	Commits          int     `json:"commits"`
+	OwnershipPercent float64 `json:"ownership_percent"`
 }

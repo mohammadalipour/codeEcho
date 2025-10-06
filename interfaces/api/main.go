@@ -57,6 +57,7 @@ func main() {
 		api.GET("/projects/:id/knowledge-risk", handlers.GetProjectKnowledgeRisk)
 		api.GET("/projects/:id/temporal-coupling", handlers.GetProjectTemporalCoupling)
 		api.GET("/projects/:id/file-types", handlers.GetProjectFileTypes)
+		api.GET("/projects/:id/bus-factor", handlers.GetProjectBusFactor)
 		api.GET("/temporal-coupling", handlers.GetTemporalCouplingFlat)
 		api.GET("/dashboard/stats", handlers.GetDashboardStats)
 

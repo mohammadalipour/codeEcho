@@ -6,7 +6,9 @@ import Projects from './pages/Projects';
 import ProjectDetail from './pages/ProjectDetail';
 import HotspotTreemap from './pages/HotspotTreemap';
 import KnowledgeRisk from './pages/KnowledgeRisk';
+import KnowledgeOwnership from './pages/KnowledgeOwnership';
 import TemporalCoupling from './pages/TemporalCoupling';
+import BusFactorPage from './pages/BusFactorPage';
 import AnalyzeRepository from './pages/AnalyzeRepository';
 import { ApiProvider } from './services/ApiContext';
 import ProjectLayout from './components/ProjectLayout';
@@ -29,7 +31,9 @@ function App() {
               <Route index element={<ProjectDetail />} />
               <Route path="hotspots" element={<HotspotTreemap />} />
               <Route path="knowledge-risk" element={<KnowledgeRisk />} />
+              <Route path="knowledge-ownership" element={<KnowledgeOwnership />} />
               <Route path="temporal-coupling" element={<TemporalCoupling />} />
+              <Route path="bus-factor" element={<BusFactorPage />} />
             </Route>
             <Route path="/knowledge-risk" element={<KnowledgeRisk />} />
           </Routes>
