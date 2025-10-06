@@ -20,6 +20,35 @@ const SortHeader = ({ label, field, currentSort, direction, onSort }) => {
   );
 };
 
+// Helper function to get coupling intensity information
+const getCouplingIntensity = (score) => {
+  if (score < 0.3) {
+    return {
+      category: 'low',
+      label: 'Low',
+      bgColor: 'bg-green-100',
+      textColor: 'text-green-700',
+      borderColor: 'border-green-200'
+    };
+  } else if (score < 0.6) {
+    return {
+      category: 'medium', 
+      label: 'Medium',
+      bgColor: 'bg-orange-100',
+      textColor: 'text-orange-700',
+      borderColor: 'border-orange-200'
+    };
+  } else {
+    return {
+      category: 'high',
+      label: 'High', 
+      bgColor: 'bg-red-100',
+      textColor: 'text-red-700',
+      borderColor: 'border-red-200'
+    };
+  }
+};
+
 const TemporalCoupling = () => {
   const { id: projectId } = useParams();
   const { api } = useApi();
@@ -46,6 +75,9 @@ const TemporalCoupling = () => {
   const [fileTypeSearch, setFileTypeSearch] = useState('');
   const [projectFileTypes, setProjectFileTypes] = useState([]);
   const [loadingFileTypes, setLoadingFileTypes] = useState(false);
+  
+  // Coupling intensity filter
+  const [couplingIntensityFilter, setCouplingIntensityFilter] = useState('all'); // 'all', 'low', 'medium', 'high'
 
   // Pagination (client-side)
   const [page, setPage] = useState(1);
@@ -127,10 +159,21 @@ const TemporalCoupling = () => {
 
   const filteredPairs = useMemo(() => {
     let list = pairs;
+    
+    // Apply directory filter
     if (directoryFilter) {
       const dir = directoryFilter.toLowerCase();
       list = list.filter(p => p.file_a.toLowerCase().startsWith(dir) || p.file_b.toLowerCase().startsWith(dir));
     }
+    
+    // Apply coupling intensity filter
+    if (couplingIntensityFilter !== 'all') {
+      list = list.filter(p => {
+        const intensity = getCouplingIntensity(p.coupling_score);
+        return intensity.category === couplingIntensityFilter;
+      });
+    }
+    
     const sorted = [...list].sort((a, b) => {
       const av = a[sortField];
       const bv = b[sortField];
@@ -139,7 +182,7 @@ const TemporalCoupling = () => {
       return av < bv ? 1 : -1;
     });
     return sorted;
-  }, [pairs, directoryFilter, sortField, sortDir]);
+  }, [pairs, directoryFilter, couplingIntensityFilter, sortField, sortDir]);
 
   // Derive directory list from file paths (top N) - collect segments up to 3 levels
   const directories = useMemo(() => {
@@ -187,6 +230,7 @@ const TemporalCoupling = () => {
     setMinCouplingScore(0);
     setSelectedFileTypes([]);
     setFileTypeSearch('');
+    setCouplingIntensityFilter('all');
   };
 
   return (
@@ -240,7 +284,7 @@ const TemporalCoupling = () => {
 
               {/* Threshold Filters */}
               <div className="space-y-4">
-                <h3 className="text-sm font-medium text-gray-900 border-b border-gray-200 pb-2">Thresholds</h3>
+                <h3 className="text-sm font-medium text-gray-900 border-b border-gray-200 pb-2">Thresholds & Intensity</h3>
                 <div className="space-y-4">
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-2">Min Shared Commits: {minSharedCommits}</label>
@@ -271,6 +315,44 @@ const TemporalCoupling = () => {
                     <div className="flex justify-between text-xs text-gray-500 mt-1">
                       <span>0.0</span>
                       <span>1.0</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-2">Coupling Intensity</label>
+                    {/* Color legend */}
+                    <div className="flex flex-wrap items-center gap-2 mb-2 text-[11px]">
+                      <span className="flex items-center gap-1">
+                        <span className="inline-block w-2.5 h-2.5 rounded-full bg-green-500"></span>
+                        Low (&lt;0.3)
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <span className="inline-block w-2.5 h-2.5 rounded-full bg-orange-500"></span>
+                        Medium (0.3-0.6)
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <span className="inline-block w-2.5 h-2.5 rounded-full bg-red-500"></span>
+                        High (&gt;0.6)
+                      </span>
+                    </div>
+                    {/* Filter buttons */}
+                    <div className="flex items-center gap-1">
+                      {['low','medium','high'].map(intensity => (
+                        <button
+                          key={intensity}
+                          type="button"
+                          onClick={() => setCouplingIntensityFilter(prev => prev === intensity ? 'all' : intensity)}
+                          className={`px-2 py-1 rounded-md border transition text-[11px] ${
+                            couplingIntensityFilter === intensity 
+                              ? 'bg-blue-600 text-white border-blue-600' 
+                              : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          {intensity.charAt(0).toUpperCase() + intensity.slice(1)}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      Click to filter by coupling strength
                     </div>
                   </div>
                 </div>
@@ -410,7 +492,17 @@ const TemporalCoupling = () => {
                   <button className="hover:text-blue-900" onClick={() => setSelectedFileTypes([])}>×</button>
                 </span>
               )}
-              {!directoryFilter && !startDate && !endDate && minSharedCommits <= 2 && minCouplingScore <= 0 && selectedFileTypes.length === 0 && (
+              {couplingIntensityFilter !== 'all' && (
+                <span className={`inline-flex items-center gap-1 px-2 py-1 rounded ${
+                  couplingIntensityFilter === 'high' ? 'bg-red-100 text-red-700 border border-red-200' :
+                  couplingIntensityFilter === 'medium' ? 'bg-orange-100 text-orange-700 border border-orange-200' :
+                  'bg-green-100 text-green-700 border border-green-200'
+                }`}>
+                  Intensity: {couplingIntensityFilter.charAt(0).toUpperCase() + couplingIntensityFilter.slice(1)}
+                  <button className="hover:opacity-80" onClick={() => setCouplingIntensityFilter('all')}>×</button>
+                </span>
+              )}
+              {!directoryFilter && !startDate && !endDate && minSharedCommits <= 2 && minCouplingScore <= 0 && selectedFileTypes.length === 0 && couplingIntensityFilter === 'all' && (
                 <span className="text-[11px] text-gray-500">No additional filters applied.</span>
               )}
             </div>
@@ -450,14 +542,14 @@ const TemporalCoupling = () => {
                     <td className="px-4 py-2 text-center">{p.total_commits_a}</td>
                     <td className="px-4 py-2 text-center">{p.total_commits_b}</td>
                     <td className="px-4 py-2 text-center">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                        p.coupling_score >= 0.9 ? 'bg-red-100 text-red-700' :
-                        p.coupling_score >= 0.7 ? 'bg-orange-100 text-orange-700' :
-                        p.coupling_score >= 0.5 ? 'bg-yellow-100 text-yellow-700' :
-                        'bg-green-100 text-green-700'
-                      }`}>
-                        {p.coupling_score.toFixed(2)}
-                      </span>
+                      {(() => {
+                        const intensity = getCouplingIntensity(p.coupling_score);
+                        return (
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${intensity.bgColor} ${intensity.textColor} border ${intensity.borderColor}`}>
+                            {p.coupling_score.toFixed(2)}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="px-4 py-2 text-xs text-gray-500">{p.last_modified?.replace('T',' ').replace('Z','')}</td>
                   </tr>
