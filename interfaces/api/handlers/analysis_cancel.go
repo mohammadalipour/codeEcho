@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"codeecho/application/usecases/analysis"
 	"codeecho/infrastructure/database"
@@ -37,6 +38,14 @@ func CancelAnalysis(c *gin.Context) {
 	// Cancel the ongoing analysis
 	if err := analysisUseCase.CancelAnalysis(id); err != nil {
 		log.Printf("Failed to cancel analysis for project %d: %v", id, err)
+		// If no active analysis found, return 404 instead of 500
+		if strings.Contains(err.Error(), "no active analysis found") {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":  "No active analysis found",
+				"detail": "No analysis is currently running for this project",
+			})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":  "Failed to cancel analysis",
 			"detail": err.Error(),

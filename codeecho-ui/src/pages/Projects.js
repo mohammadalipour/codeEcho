@@ -287,11 +287,33 @@ const Projects = () => {
       console.error('Failed to cancel analysis:', error);
       setIsCancelAnalysisModalOpen(false);
       
+      // Handle different error cases
+      let errorMessage = '';
+      if (error.response?.status === 404) {
+        errorMessage = `No active analysis found for "${projectToCancel?.name}". The analysis may have already completed or was not running.`;
+        // Still try to delete the project if no analysis is running
+        try {
+          await api.deleteProject(projectToCancel.id);
+          await api.getProjects();
+          setProjectToCancel(null);
+          addNotification({
+            type: 'info',
+            message: `Project "${projectToCancel?.name}" was deleted (no active analysis found).`,
+            duration: 5000
+          });
+          return;
+        } catch (deleteError) {
+          errorMessage = `No active analysis found and failed to delete project: ${deleteError.message || 'Unknown error'}`;
+        }
+      } else {
+        errorMessage = `Failed to cancel analysis: ${error.response?.data?.detail || error.message || 'Unknown error'}`;
+      }
+      
       // Show error notification
       addNotification({
         type: 'error',
-        message: `Failed to cancel analysis: ${error.message || 'Unknown error'}`,
-        duration: 5000
+        message: errorMessage,
+        duration: 7000
       });
     }
   };
