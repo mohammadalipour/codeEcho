@@ -37,6 +37,11 @@ Built with **Clean Architecture** principles:
 # Clone and start complete development environment
 git clone https://github.com/mohammadalipour/codeEcho.git
 cd codeEcho
+
+# Optional: Validate your setup
+./validate-docker-setup.sh
+
+# Start development environment
 make docker-dev
 
 # Access your applications:
@@ -47,6 +52,8 @@ make docker-dev
 
 **📖 See [DOCKER_SETUP.md](./DOCKER_SETUP.md) for complete Docker-only development guide**
 
+**🚨 Having build issues? See [DOCKER_BUILD_FIX.md](./DOCKER_BUILD_FIX.md) for troubleshooting**
+
 ### **Alternative: Manual Docker Compose**
 
 ```bash
@@ -54,17 +61,37 @@ make docker-dev
 docker-compose -f docker-compose.ddd.yml up --build -d
 ```
 
-### **Analyze Your First Repository**
+### **🎯 Docker-Only Development Commands**
 
 ```bash
-# Get into CLI container
-docker exec -it codeecho-cli sh
+# Run tests (no local Go needed)
+make docker-test
 
-# Analyze a repository
-./codeecho-cli analyze --project-name "MyProject" --repo-path /path/to/repo
+# Format and lint code (no local tools needed)
+make docker-quality
 
-# Check hotspots
-./codeecho-cli hotspots --project-id 1
+# Run CLI commands
+make docker-cli-run ARGS="--help"
+make docker-cli-run ARGS="analyze --project-name MyProject --repo-path /path/to/repo"
+
+# View logs and status
+make docker-logs
+make status
+```
+
+### **🔐 Default Login Credentials**
+
+```bash
+# Create default users for testing
+make db-create-users
+
+# Available login credentials (all use admin123 for now):
+# Admin: admin@codeecho.com / admin123
+# Demo:  demo@codeecho.com  / admin123  
+# Test:  test@codeecho.com  / admin123
+
+# Test authentication system
+make test-auth
 ```
 
 ### **View Results**

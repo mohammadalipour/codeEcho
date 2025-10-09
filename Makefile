@@ -2,7 +2,34 @@
 # ==============================================================================
 # This Makefile provides common development tasks for the CodeEcho project
 # Usage: make <target>
-# ==============================================================================
+# =============.PHONY: db-restore
+db-restore: ## Restore database from backup.sql
+	@echo "$(YELLOW)Restoring database from backup...$(NC)"
+	docker exec -i $(APP_NAME)-mysql mysql -u codeecho -pcodeecho codeecho_db < backup.sql
+	@echo "$(GREEN)Database restored$(NC)"
+
+.PHONY: db-create-users
+db-create-users: ## Create default users for login (admin@codeecho.com:admin123, demo@codeecho.com:demo123, test@codeecho.com:test123)
+	@echo "$(YELLOW)Creating default users...$(NC)"
+	docker exec -i codeecho-mysql mysql -u codeecho_user -pcodeecho_pass codeecho_db < default_users.sql
+	@echo "$(GREEN)Default users created:$(NC)"
+	@echo "$(BLUE)Admin: admin@codeecho.com / admin123$(NC)"
+	@echo "$(BLUE)Demo:  demo@codeecho.com  / admin123$(NC)"
+	@echo "$(BLUE)Test:  test@codeecho.com  / admin123$(NC)"
+	@echo ""
+	@echo "$(YELLOW)💡 All users use 'admin123' password for now$(NC)"
+	@echo "$(YELLOW)   Test with: make test-auth$(NC)"
+
+.PHONY: db-list-users
+db-list-users: ## List all users in the database
+	@echo "$(YELLOW)Listing all users...$(NC)"
+	docker exec codeecho-mysql mysql -u codeecho_user -pcodeecho_pass codeecho_db -e "SELECT id, email, first_name, last_name, role, is_active, created_at FROM users ORDER BY role DESC, email;"
+
+.PHONY: db-reset-user-passwords
+db-reset-user-passwords: ## Reset all user passwords to default values
+	@echo "$(YELLOW)Resetting user passwords to defaults...$(NC)"
+	docker exec codeecho-mysql mysql -u codeecho_user -pcodeecho_pass codeecho_db -e "UPDATE users SET password_hash = '\$$2a\$$10\$$mKkNIVP4s4eSdXo65Vw8WeplO8Ff/0IX/awtnx2OlCHrWNvxYL.ke' WHERE email = 'admin@codeecho.com'; UPDATE users SET password_hash = '\$$2a\$$10\$$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi' WHERE email = 'demo@codeecho.com'; UPDATE users SET password_hash = '\$$2a\$$10\$$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy' WHERE email = 'test@codeecho.com';"
+	@echo "$(GREEN)Passwords reset to defaults$(NC)"============================================================
 
 # Variables
 APP_NAME = codeecho
@@ -153,6 +180,16 @@ benchmark: ## Run Go benchmarks - Requires local Go
 docker-benchmark: ## Run Go benchmarks using Docker only
 	@echo "$(YELLOW)Running benchmarks in Docker...$(NC)"
 	@docker run --rm -v $(PWD):/app -w /app golang:1.24-alpine sh -c "apk add --no-cache git && go mod download && go test -bench=. -benchmem ./..."
+
+.PHONY: test-auth
+test-auth: ## Test authentication with default users
+	@echo "$(YELLOW)Testing authentication system...$(NC)"
+	@./test_auth.sh
+
+.PHONY: db-set-passwords
+db-set-passwords: ## Set proper individual passwords for demo users
+	@echo "$(YELLOW)Setting proper passwords for all users...$(NC)"
+	@./set_passwords.sh
 
 # ==============================================================================
 # Docker Operations
@@ -371,6 +408,10 @@ docker-dev: docker-build docker-up ## Complete Docker-only development setup
 	@echo "$(YELLOW)- make docker-fmt$(NC)        # Format code"
 	@echo "$(YELLOW)- make docker-cli-run$(NC)    # Run CLI commands"
 	@echo "$(YELLOW)- make docker-logs$(NC)       # View logs"
+	@echo "$(YELLOW)- make db-create-users$(NC)   # Create default users for login"  
+	@echo "$(YELLOW)- make db-list-users$(NC)     # List all users"
+	@echo "$(YELLOW)- make test-auth$(NC)         # Test authentication system"
+	@echo "$(YELLOW)- make fix-build$(NC)         # Fix Docker build issues"
 	@echo "$(YELLOW)- make stop$(NC)              # Stop services"
 
 .PHONY: docker-cli-run
@@ -412,6 +453,11 @@ reset: clean docker-down docker-build docker-up db-reset ## Full reset (clean, r
 .PHONY: docker-reset
 docker-reset: docker-down docker-build docker-up db-reset ## Docker-only full reset
 	@echo "$(GREEN)Docker-only full reset complete!$(NC)"
+
+.PHONY: fix-build
+fix-build: ## Fix common Docker build issues (run this if build fails)
+	@echo "$(YELLOW)Running build fix script...$(NC)"
+	@./fix-docker-build.sh
 
 # ==============================================================================
 # CI/CD

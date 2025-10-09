@@ -6,20 +6,32 @@ RUN apk add --no-cache git
 
 WORKDIR /app
 
-# Copy go mod files
+# Set Go environment variables to ensure module mode
+ENV GO111MODULE=on
+ENV GOPROXY=https://proxy.golang.org,direct
+ENV GOSUMDB=sum.golang.org
+
+# Copy go mod files first
 COPY go.mod go.sum ./
 
-# Download dependencies
+# Ensure we're in module mode and download dependencies
 RUN go mod download
+RUN go mod verify
 
 # Copy source code
 COPY . .
 
-# Verify module structure
-RUN go mod verify
+# Debug: Show module info and verify structure
+RUN go list -m
+RUN go list ./...
 
-# Build the API application
-RUN CGO_ENABLED=0 GOOS=linux go build -v -o codeecho-api ./interfaces/api
+# Clean module cache and rebuild
+RUN go clean -modcache
+RUN go mod download
+RUN go mod tidy
+
+# Build the API application with module mode explicitly enabled
+RUN CGO_ENABLED=0 GOOS=linux GO111MODULE=on go build -v -o codeecho-api ./interfaces/api
 
 # Final stage
 FROM alpine:latest

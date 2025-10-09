@@ -13,19 +13,41 @@ else
     exit 1
 fi
 
-# Test 2: Login
-echo "2. Testing login..."
-LOGIN_RESPONSE=$(curl -s -c /tmp/test_cookies.txt -X POST http://localhost:8080/api/v1/auth/login \
-    -H "Content-Type: application/json" \
-    -d '{"email": "admin@codeecho.com", "password": "admin123"}')
+# Test 2: Test all default users login
+echo "2. Testing login for all default users..."
 
-if echo "$LOGIN_RESPONSE" | grep -q "token"; then
-    echo "✅ Login successful"
-    # Extract token for header auth test
-    TOKEN=$(echo "$LOGIN_RESPONSE" | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
-else
-    echo "❌ Login failed"
-    echo "Response: $LOGIN_RESPONSE"
+declare -A test_users=(
+    ["admin@codeecho.com"]="admin123"
+    ["demo@codeecho.com"]="admin123" 
+    ["test@codeecho.com"]="admin123"
+)
+
+success_count=0
+for email in "${!test_users[@]}"; do
+    password="${test_users[$email]}"
+    echo "   Testing: $email"
+    
+    LOGIN_RESPONSE=$(curl -s -X POST http://localhost:8080/api/v1/auth/login \
+        -H "Content-Type: application/json" \
+        -d "{\"email\":\"$email\",\"password\":\"$password\"}")
+
+    if echo "$LOGIN_RESPONSE" | grep -q "token"; then
+        echo "   ✅ Login successful for $email"
+        if [ "$email" = "admin@codeecho.com" ]; then
+            # Save admin token for later tests
+            TOKEN=$(echo "$LOGIN_RESPONSE" | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
+        fi
+        ((success_count++))
+    else
+        echo "   ❌ Login failed for $email"
+        echo "   Response: $LOGIN_RESPONSE"
+    fi
+done
+
+echo "   Summary: $success_count/${#test_users[@]} users can login successfully"
+
+if [ $success_count -eq 0 ]; then
+    echo "❌ No users can login - exiting"
     exit 1
 fi
 

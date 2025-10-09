@@ -1,0 +1,58 @@
+# Ignore Git repository
+.git
+.gitignore
+
+# Ignore binaries
+bin/
+**/bin/
+
+# Ignore build artifacts
+build/
+dist/
+
+# Ignore dependencies that will be downloaded in Docker
+node_modules/
+codeecho-ui/node_modules/
+
+# Ignore local environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Ignore IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Ignore OS files
+.DS_Store
+Thumbs.db
+
+# Ignore test coverage
+coverage/
+*.cover
+*.out
+
+# Ignore temporary files
+tmp/
+temp/
+*.tmp
+*.log
+
+# Ignore development database files
+*.db
+*.sqlite
+
+# Ignore backup files
+*.bak
+backup.sql
+
+# Ignore docker compose override files
+docker-compose.override.yml
+
+# Ignore documentation build files
+docs/_build/
