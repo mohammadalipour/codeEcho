@@ -51,7 +51,7 @@ vendor/
 
 # Test files and directories
 test-api
-repositories/
+/repositories/
 .env.*.local
 
 # Docker volumes and data
