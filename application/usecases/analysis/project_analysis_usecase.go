@@ -9,6 +9,7 @@ import (
 	"codeecho/infrastructure/analyzer"
 	"codeecho/infrastructure/database"
 	"codeecho/infrastructure/git"
+	"codeecho/infrastructure/persistence/mysql"
 )
 
 // Global map to track active analyses and provide cancellation
@@ -54,13 +55,12 @@ func NewProjectAnalysisUseCase(projectRepo repositories.ProjectRepository) *Proj
 	// Initialize git service
 	gitService := git.NewGitService()
 
-	// Initialize analyzer with required dependencies
-	repositoryAnalyzer := analyzer.NewRepositoryAnalyzer(gitService, projectRepo, database.DB)
+	// Initialize required repositories
+	commitRepo := mysql.NewCommitRepository(database.DB)
+	changeRepo := mysql.NewChangeRepository(database.DB)
 
-	// Set up the cancel checker to use our global cancellation state
-	repositoryAnalyzer.SetCancelChecker(func(projectID int) (bool, error) {
-		return isAnalysisCancelled(projectID), nil
-	})
+	// Initialize analyzer with required dependencies
+	repositoryAnalyzer := analyzer.NewRepositoryAnalyzer(gitService, projectRepo, commitRepo, changeRepo, database.DB)
 
 	return &ProjectAnalysisUseCase{
 		analyzer:    repositoryAnalyzer,

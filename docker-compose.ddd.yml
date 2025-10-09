@@ -31,6 +31,8 @@ services:
         condition: service_healthy
     environment:
       - DB_DSN=codeecho_user:codeecho_pass@tcp(codeecho-mysql:3306)/codeecho_db?parseTime=true
+      - JWT_SECRET=your-super-secret-jwt-key-change-in-production
+      - JWT_EXPIRATION_HOURS=24
     volumes:
       - shared_repos:/tmp
     healthcheck:
@@ -38,6 +40,26 @@ services:
       timeout: 10s
       retries: 5
       interval: 30s
+
+  # CodeEcho UI Service (React Frontend)
+  codeecho-ui:
+    build:
+      context: ./codeecho-ui
+      dockerfile: Dockerfile.dev
+    container_name: codeecho-ui
+    ports:
+      - "3000:3000"
+    depends_on:
+      - codeecho-api
+    environment:
+      - REACT_APP_API_URL=http://localhost:8080/api/v1
+      - CHOKIDAR_USEPOLLING=true  # For hot reloading in Docker
+    volumes:
+      - ./codeecho-ui/src:/app/src
+      - ./codeecho-ui/public:/app/public
+      - /app/node_modules  # Anonymous volume for node_modules
+    stdin_open: true
+    tty: true
 
   # CodeEcho CLI Service (for manual analysis tasks)
   codeecho-cli:
@@ -57,26 +79,6 @@ services:
     # CLI runs in interactive mode, so we keep it running
     entrypoint: ["/bin/sh"]
     command: ["-c", "while true; do sleep 30; done"]
-
-  # CodeEcho React UI
-  codeecho-ui:
-    build:
-      context: ./codeecho-ui
-      dockerfile: Dockerfile
-    container_name: codeecho-ui
-    ports:
-      - "3000:3000"
-    depends_on:
-      codeecho-api:
-        condition: service_healthy
-    environment:
-      - REACT_APP_API_URL=http://localhost:8080/api/v1
-      - CHOKIDAR_USEPOLLING=true
-    volumes:
-      - ./codeecho-ui/src:/app/src
-      - ./codeecho-ui/public:/app/public
-    stdin_open: true
-    tty: true
 
 volumes:
   mysql_data:

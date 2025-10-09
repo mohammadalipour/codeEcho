@@ -312,7 +312,7 @@ const HotspotTreemap = () => {
   // UI States
   if (loading) {
     return (
-      <div className="px-4 sm:px-6 lg:px-8 py-8">
+      <div className="px-4 sm:px-6 lg:px-8 py-6">
         <div className="animate-pulse">
           <div className="h-8 w-64 bg-gray-200 rounded mb-6"></div>
           <div className="h-96 bg-gray-200 rounded-lg"></div>
@@ -329,7 +329,7 @@ const HotspotTreemap = () => {
   const filteredHotspotCount = filteredHotspots ? filteredHotspots.length : 0;
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-6">
+  <div className="w-full px-4 sm:px-6 lg:px-8 py-6">
       {/* Debug */}
       {process.env.NODE_ENV !== 'production' && console.debug('[HotspotTreemap] API methods:', api ? Object.keys(api) : 'api undefined')}
 

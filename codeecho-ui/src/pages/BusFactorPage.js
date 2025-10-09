@@ -305,7 +305,7 @@ const BusFactorPage = () => {
 
   if (error) {
     return (
-      <div className="p-6">
+      <div className="px-4 sm:px-6 lg:px-8 py-6">
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
           <h3 className="text-lg font-semibold text-gray-900">Error</h3>
           <p className="text-sm text-gray-700 mt-2">{error}</p>
@@ -315,7 +315,7 @@ const BusFactorPage = () => {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+  <div className="w-full px-4 sm:px-6 lg:px-8 py-6">
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-xl font-semibold text-gray-900 mb-2">Bus Factor Analysis</h1>

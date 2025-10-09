@@ -14,6 +14,7 @@ func CORS() gin.HandlerFunc {
 	config.AllowOrigins = []string{"http://localhost:3000"} // React dev server
 	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
 	config.AllowHeaders = []string{"Origin", "Content-Length", "Content-Type", "Authorization"}
+	config.AllowCredentials = true // Enable credentials for cookie support
 
 	return cors.New(config)
 }

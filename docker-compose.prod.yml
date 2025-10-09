@@ -1,0 +1,87 @@
+services:
+  # MySQL Database
+  codeecho-mysql:
+    image: mysql:8.0
+    container_name: codeecho-mysql-prod
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: codeecho_db
+      MYSQL_USER: codeecho_user
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-codeecho_pass}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+    networks:
+      - codeecho-network
+
+  # CodeEcho API Service
+  codeecho-api:
+    build:
+      context: .
+      dockerfile: ./interfaces/api/Dockerfile
+    container_name: codeecho-api-prod
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      codeecho-mysql:
+        condition: service_healthy
+    environment:
+      - DB_DSN=codeecho_user:${MYSQL_PASSWORD:-codeecho_pass}@tcp(codeecho-mysql:3306)/codeecho_db?parseTime=true
+      - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
+      - JWT_EXPIRATION_HOURS=${JWT_EXPIRATION_HOURS:-24}
+      - GIN_MODE=release
+    volumes:
+      - shared_repos:/tmp
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--spider", "http://localhost:8080/api/v1/health"]
+      timeout: 10s
+      retries: 5
+      interval: 30s
+    networks:
+      - codeecho-network
+
+  # CodeEcho UI Service (React Frontend - Production)
+  codeecho-ui:
+    build:
+      context: ./codeecho-ui
+      dockerfile: Dockerfile
+    container_name: codeecho-ui-prod
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - codeecho-api
+    networks:
+      - codeecho-network
+
+  # Nginx Reverse Proxy (Optional - for production routing)
+  nginx:
+    image: nginx:alpine
+    container_name: codeecho-nginx
+    restart: unless-stopped
+    ports:
+      - "443:443"
+    volumes:
+      - ./nginx-prod.conf:/etc/nginx/conf.d/default.conf
+      - ./ssl:/etc/nginx/ssl  # Mount SSL certificates
+    depends_on:
+      - codeecho-ui
+      - codeecho-api
+    networks:
+      - codeecho-network
+
+volumes:
+  mysql_data:
+  shared_repos:
+
+networks:
+  codeecho-network:
+    driver: bridge

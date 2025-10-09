@@ -246,7 +246,7 @@ const TemporalCoupling = () => {
 
   return (
     <div className="py-4">
-      <div className="max-w-7xl mx-auto px-0">
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-6">
         {/* Removed back button because persistent tabs provide navigation */}
 
         <h1 className="text-xl font-semibold text-gray-900 mb-1">Temporal Coupling</h1>

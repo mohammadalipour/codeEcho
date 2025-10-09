@@ -50,64 +50,62 @@ const KnowledgeRisk = () => {
     return (
       <div className="px-4 sm:px-6 lg:px-8 py-8">
         <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
-          <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+          <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-1/3 mb-4"></div>
+          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8">
-      {/* Constrained width container */}
-      <div className="max-w-6xl mx-auto">
+    <div className="w-full px-4 sm:px-6 lg:px-8 py-6">
         <div className="mb-8">
-        {/* Back button removed; navigation handled by persistent tabs */}
-        <h1 className="text-xl font-semibold text-gray-900">
-          {isProjectSpecific 
-            ? `Knowledge Risk Analysis - ${projectName}`
-            : 'Knowledge Risk Analysis'}
-        </h1>
-        <p className="mt-2 text-sm text-gray-600 max-w-3xl">
-          {isProjectSpecific
-            ? `Ownership concentration, author activity, and bus factor indicators for ${projectName}`
-            : 'Select a project below to analyze ownership concentration, author activity, and bus factor indicators.'}
-        </p>
-
-        {!isProjectSpecific && (
-          <div className="mt-6 bg-white border border-gray-200 rounded-lg shadow-sm p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Choose a Project</h2>
-            {error && (
-              <div className="mb-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md p-3">{error}</div>
-            )}
-            {allProjects.length === 0 && !error && (
-              <div className="text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded-md p-4 text-center">No projects found. Create or analyze a project first.</div>
-            )}
-            <div className="border border-gray-200 rounded-md max-h-80 overflow-auto bg-white">
-              {allProjects.map(p => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => navigate(`/projects/${p.id}/knowledge-risk`)}
-                  className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center justify-between border-b border-gray-100 last:border-b-0 transition-colors"
-                >
-                  <span className="truncate font-medium text-gray-900">{p.name}</span>
-                  <span className="text-xs text-gray-500 ml-4">ID {p.id}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Knowledge Ownership Definition */}
-        <div className="mt-8 bg-gray-50 border border-gray-200 rounded-lg p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-3">What is Knowledge Ownership?</h3>
-          <p className="text-sm text-gray-700 leading-relaxed">
-            Knowledge ownership reflects how concentrated understanding of a code area is. Extremely high concentration (one
-            person knows everything) creates risk. Extremely low concentration (too many casual editors) can also dilute accountability.
-            Aim for balanced distribution with redundancy for critical modules.
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+            {isProjectSpecific 
+              ? `Knowledge Risk Analysis - ${projectName}`
+              : 'Knowledge Risk Analysis'}
+          </h1>
+          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400 max-w-3xl">
+            {isProjectSpecific
+              ? `Ownership concentration, author activity, and bus factor indicators for ${projectName}`
+              : 'Select a project below to analyze ownership concentration, author activity, and bus factor indicators.'}
           </p>
-        </div>
+
+          {!isProjectSpecific && (
+            <div className="mt-6 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl shadow-xl p-8 w-full">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Choose a Project</h2>
+              {error && (
+                <div className="mb-4 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900 border border-red-200 dark:border-red-700 rounded-md p-3 w-full">{error}</div>
+              )}
+              {allProjects.length === 0 && !error && (
+                <div className="text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-800 rounded-md p-4 text-center w-full">No projects found. Create or analyze a project first.</div>
+              )}
+              <div className="flex flex-col gap-2 w-full max-h-80 overflow-auto">
+                {allProjects.map(p => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => navigate(`/projects/${p.id}/knowledge-risk`)}
+                    className="w-full flex items-center justify-between px-6 py-4 rounded-xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-150"
+                    style={{ minWidth: 0 }}
+                  >
+                    <span className="truncate font-medium text-gray-900 dark:text-white text-base">{p.name}</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400 ml-4">ID {p.id}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Knowledge Ownership Definition */}
+          <div className="mt-8 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-800 rounded-2xl p-8">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">What is Knowledge Ownership?</h3>
+            <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
+              Knowledge ownership reflects how concentrated understanding of a code area is. Extremely high concentration (one
+              person knows everything) creates risk. Extremely low concentration (too many casual editors) can also dilute accountability.
+              Aim for balanced distribution with redundancy for critical modules.
+            </p>
+          </div>
         </div>
 
         {isProjectSpecific && (
@@ -118,33 +116,32 @@ const KnowledgeRisk = () => {
         )}
 
         {!isProjectSpecific && (
-          <div className="mt-8 bg-gray-50 border border-gray-200 rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">How to Use</h3>
-            <div className="space-y-3 text-sm text-gray-700">
+          <div className="mt-8 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-800 rounded-2xl p-8">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">How to Use</h3>
+            <div className="space-y-3 text-sm text-gray-700 dark:text-gray-300">
               <div className="flex items-start gap-3">
-                <span className="text-gray-400 font-medium">•</span>
-                <div><strong className="text-gray-900">Select a Project:</strong> Pick one to view ownership, risk levels, and activity metrics</div>
+                <span className="text-gray-400 dark:text-gray-500 font-medium">•</span>
+                <div><strong className="text-gray-900 dark:text-white">Select a Project:</strong> Pick one to view ownership, risk levels, and activity metrics</div>
               </div>
               <div className="flex items-start gap-3">
-                <span className="text-gray-400 font-medium">•</span>
-                <div><strong className="text-gray-900">Filters:</strong> Narrow by owner, path, risk, ownership %, or number of authors</div>
+                <span className="text-gray-400 dark:text-gray-500 font-medium">•</span>
+                <div><strong className="text-gray-900 dark:text-white">Filters:</strong> Narrow by owner, path, risk, ownership %, or number of authors</div>
               </div>
               <div className="flex items-start gap-3">
-                <span className="text-gray-400 font-medium">•</span>
-                <div><strong className="text-gray-900">Bus Factor:</strong> Estimated minimum people retaining ≥60% cumulative knowledge</div>
+                <span className="text-gray-400 dark:text-gray-500 font-medium">•</span>
+                <div><strong className="text-gray-900 dark:text-white">Bus Factor:</strong> Estimated minimum people retaining ≥60% cumulative knowledge</div>
               </div>
               <div className="flex items-start gap-3">
-                <span className="text-gray-400 font-medium">•</span>
-                <div><strong className="text-gray-900">Hotspots & Authors:</strong> Use chart to see concentration of activity</div>
+                <span className="text-gray-400 dark:text-gray-500 font-medium">•</span>
+                <div><strong className="text-gray-900 dark:text-white">Hotspots & Authors:</strong> Use chart to see concentration of activity</div>
               </div>
               <div className="flex items-start gap-3">
-                <span className="text-gray-400 font-medium">•</span>
-                <div><strong className="text-gray-900">Goal:</strong> Spot fragile high-ownership areas and under-owned critical paths</div>
+                <span className="text-gray-400 dark:text-gray-500 font-medium">•</span>
+                <div><strong className="text-gray-900 dark:text-white">Goal:</strong> Spot fragile high-ownership areas and under-owned critical paths</div>
               </div>
             </div>
           </div>
         )}
-      </div>
     </div>
   );
 };

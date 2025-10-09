@@ -10,6 +10,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true, // Enable credentials for cookie support
   validateStatus: status => status < 500, // Handle 4xx errors in catch block
 });
 

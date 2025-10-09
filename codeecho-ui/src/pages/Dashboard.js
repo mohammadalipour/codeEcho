@@ -20,31 +20,28 @@ const Dashboard = () => {
     return (
       <div className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
         <div className="animate-pulse">
-          {/* Header skeleton */}
-          <div className="bg-gray-100 rounded-2xl p-8 border mb-8">
-            <div className="h-8 w-48 bg-gray-200 rounded-lg mb-2"></div>
-            <div className="h-5 w-96 bg-gray-200 rounded"></div>
+          <div className="bg-gradient-to-br from-primary-50 via-white to-primary-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 rounded-3xl p-10 border mb-8 shadow-xl">
+            <div className="h-8 w-48 bg-gray-200 dark:bg-gray-700 rounded-lg mb-2"></div>
+            <div className="h-5 w-96 bg-gray-200 dark:bg-gray-700 rounded"></div>
           </div>
-          {/* Stats skeleton */}
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 mb-8">
             {[...Array(4)].map((_, i) => (
-              <div key={i} className="bg-white border border-gray-200 rounded-xl p-6">
+              <div key={i} className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-6 shadow-lg">
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
-                    <div className="h-4 w-20 bg-gray-200 rounded mb-2"></div>
-                    <div className="h-8 w-16 bg-gray-200 rounded"></div>
+                    <div className="h-4 w-20 bg-gray-200 dark:bg-gray-700 rounded mb-2"></div>
+                    <div className="h-8 w-16 bg-gray-200 dark:bg-gray-700 rounded"></div>
                   </div>
-                  <div className="w-12 h-12 bg-gray-200 rounded-xl"></div>
+                  <div className="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-xl"></div>
                 </div>
               </div>
             ))}
           </div>
-          {/* Content skeleton */}
-          <div className="bg-white border border-gray-200 rounded-xl p-8">
-            <div className="h-6 w-32 bg-gray-200 rounded mb-6"></div>
+          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-10 shadow-lg">
+            <div className="h-6 w-32 bg-gray-200 dark:bg-gray-700 rounded mb-6"></div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="h-40 bg-gray-100 rounded-xl"></div>
-              <div className="h-40 bg-gray-100 rounded-xl"></div>
+              <div className="h-40 bg-gray-100 dark:bg-gray-800 rounded-xl"></div>
+              <div className="h-40 bg-gray-100 dark:bg-gray-800 rounded-xl"></div>
             </div>
           </div>
         </div>
@@ -55,22 +52,22 @@ const Dashboard = () => {
   if (error) {
     return (
       <div className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-        <div className="bg-white border border-red-200 rounded-xl shadow-sm p-8">
+        <div className="bg-white dark:bg-gray-900 border border-red-200 dark:border-red-700 rounded-2xl shadow-xl p-10">
           <div className="flex items-start">
-            <div className="bg-red-100 p-3 rounded-xl mr-4">
-              <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="bg-red-100 dark:bg-red-900 p-4 rounded-xl mr-4 shadow">
+              <svg className="h-6 w-6 text-red-600 dark:text-red-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.996-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
               </svg>
             </div>
             <div className="flex-1">
-              <h3 className="text-lg font-medium text-red-900 mb-2">Error Loading Dashboard</h3>
-              <div className="text-sm text-red-700 mb-4">
+              <h3 className="text-lg font-bold text-red-900 dark:text-red-200 mb-2">Error Loading Dashboard</h3>
+              <div className="text-sm text-red-700 dark:text-red-100 mb-4">
                 <p className="mb-2">{error}</p>
-                <p className="text-red-600">Make sure the API server is running on port 8080</p>
+                <p className="text-red-600 dark:text-red-300">Make sure the API server is running on port 8080</p>
               </div>
               <button 
                 onClick={() => window.location.reload()}
-                className="px-4 py-2 bg-red-100 border border-red-300 rounded-lg text-sm font-medium text-red-700 hover:bg-red-200 transition-colors duration-200"
+                className="px-4 py-2 bg-red-100 dark:bg-red-800 border border-red-300 dark:border-red-700 rounded-lg text-sm font-semibold text-red-700 dark:text-red-200 hover:bg-red-200 dark:hover:bg-red-700 transition-colors duration-200 shadow"
               >
                 Retry
               </button>
