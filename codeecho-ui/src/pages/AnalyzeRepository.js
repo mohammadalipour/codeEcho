@@ -69,8 +69,21 @@ const AnalyzeRepository = () => {
   };
 
   const isGitUrl = (url) => {
-    return url.match(/^(https?:\/\/|git@).*\.git$/i) || 
-           url.match(/^https?:\/\/(github|gitlab|bitbucket)\.com\/.*$/i);
+    // SSH format: git@hostname:user/repo.git
+    const sshPattern = /^git@[^:]+:[^\/]+\/[^\/]+\.git$/i;
+    // HTTPS format: https://hostname/user/repo.git or https://hostname/user/repo
+    const httpsPattern = /^https?:\/\/[^\/]+\/[^\/]+\/[^\/]+(\.git)?$/i;
+    
+    return sshPattern.test(url) || httpsPattern.test(url);
+  };
+
+  const convertSshToHttps = (sshUrl) => {
+    // Convert git@github.com:user/repo.git to https://github.com/user/repo.git
+    const sshMatch = sshUrl.match(/^git@([^:]+):([^\/]+\/[^\/]+)\.git$/i);
+    if (sshMatch) {
+      return `https://${sshMatch[1]}/${sshMatch[2]}.git`;
+    }
+    return sshUrl;
   };
 
   const handleViewProject = () => {
@@ -126,8 +139,20 @@ const AnalyzeRepository = () => {
     }
 
     if (inputMethod === 'url' && !isGitUrl(formData.repoPath.trim())) {
+      console.log('Git URL validation failed for:', formData.repoPath.trim());
       setError('Please enter a valid Git repository URL');
       return;
+    }
+
+    // Auto-convert SSH URLs to HTTPS for better compatibility
+    let repoUrl = formData.repoPath.trim();
+    if (repoUrl.startsWith('git@')) {
+      const httpsUrl = convertSshToHttps(repoUrl);
+      if (httpsUrl !== repoUrl) {
+        console.log(`Converting SSH URL to HTTPS: ${repoUrl} → ${httpsUrl}`);
+        repoUrl = httpsUrl;
+        setFormData(prev => ({ ...prev, repoPath: httpsUrl }));
+      }
     }
     
     try {
@@ -141,7 +166,7 @@ const AnalyzeRepository = () => {
       // Format data according to the API's expected schema
       const projectData = {
         name: formData.projectName.trim(),
-        repo_path: inputMethod === 'upload' ? selectedFile.name : formData.repoPath.trim(),
+        repo_path: inputMethod === 'upload' ? selectedFile.name : repoUrl,
         description: formData.description.trim() || `Git repository analysis for ${formData.projectName.trim()}`
       };
       
@@ -168,7 +193,7 @@ const AnalyzeRepository = () => {
         }
       }
       
-      await api.analyzeProject(project.id);
+      await api.analyzeProject(project.id, inputMethod === 'upload' ? selectedFile.name : repoUrl);
       
       setCurrentStep('complete');
       setProgress({
@@ -186,7 +211,7 @@ const AnalyzeRepository = () => {
 
   if (currentStep !== 'input') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 px-4 sm:px-6 lg:px-8 py-8">
+      <div className="min-h-screen bg-gray-50 px-4 sm:px-6 lg:px-8 py-8">
         <div className="max-w-4xl mx-auto">
           <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-2xl border border-white/50 overflow-hidden">
             {/* Enhanced Progress Header */}
@@ -348,7 +373,7 @@ const AnalyzeRepository = () => {
 
   // Initial form view
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-slate-50 to-indigo-50 px-4 sm:px-6 lg:px-8 py-8">
+    <div className="min-h-screen bg-gray-50 px-4 sm:px-6 lg:px-8 py-8">
       <div className="max-w-4xl mx-auto">
         {/* Enhanced Header */}
         <div className="text-center mb-12">
@@ -472,6 +497,9 @@ const AnalyzeRepository = () => {
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
                       placeholder="https://github.com/username/repository.git"
                     />
+                    <p className="mt-2 text-sm text-gray-600">
+                      💡 Use HTTPS URLs for best compatibility. SSH URLs will be automatically converted.
+                    </p>
                   </div>
                 ) : (
                   <div>

@@ -63,47 +63,46 @@ const KnowledgeRisk = () => {
       <div className="max-w-6xl mx-auto">
         <div className="mb-8">
         {/* Back button removed; navigation handled by persistent tabs */}
-        <h1 className="text-2xl font-semibold text-gray-900">
+        <h1 className="text-xl font-semibold text-gray-900">
           {isProjectSpecific 
             ? `Knowledge Risk Analysis - ${projectName}`
             : 'Knowledge Risk Analysis'}
         </h1>
-        <p className="mt-1 text-sm text-gray-500 max-w-3xl">
+        <p className="mt-2 text-sm text-gray-600 max-w-3xl">
           {isProjectSpecific
             ? `Ownership concentration, author activity, and bus factor indicators for ${projectName}`
             : 'Select a project below to analyze ownership concentration, author activity, and bus factor indicators.'}
         </p>
 
         {!isProjectSpecific && (
-          <div className="mt-5 bg-white border border-gray-200 rounded-lg p-4">
-            <h2 className="text-sm font-medium text-gray-700 mb-3">Choose a Project</h2>
+          <div className="mt-6 bg-white border border-gray-200 rounded-lg shadow-sm p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Choose a Project</h2>
             {error && (
-              <div className="mb-3 text-xs text-red-600">{error}</div>
+              <div className="mb-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md p-3">{error}</div>
             )}
             {allProjects.length === 0 && !error && (
-              <div className="text-xs text-gray-500">No projects found. Create or analyze a project first.</div>
+              <div className="text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded-md p-4 text-center">No projects found. Create or analyze a project first.</div>
             )}
-            <ul className="divide-y divide-gray-100 max-h-72 overflow-auto text-sm">
+            <div className="border border-gray-200 rounded-md max-h-80 overflow-auto bg-white">
               {allProjects.map(p => (
-                <li key={p.id}>
-                  <button
-                    type="button"
-                    onClick={() => navigate(`/projects/${p.id}/knowledge-risk`)}
-                    className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center justify-between"
-                  >
-                    <span className="truncate font-medium text-gray-800">{p.name}</span>
-                    <span className="text-[11px] text-gray-500 ml-4">ID {p.id}</span>
-                  </button>
-                </li>
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => navigate(`/projects/${p.id}/knowledge-risk`)}
+                  className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center justify-between border-b border-gray-100 last:border-b-0 transition-colors"
+                >
+                  <span className="truncate font-medium text-gray-900">{p.name}</span>
+                  <span className="text-xs text-gray-500 ml-4">ID {p.id}</span>
+                </button>
               ))}
-            </ul>
+            </div>
           </div>
         )}
 
         {/* Knowledge Ownership Definition */}
-        <div className="mt-6 bg-purple-50 border border-purple-200 rounded-md p-4">
-          <h3 className="text-sm font-medium text-purple-800 mb-1">What is Knowledge Ownership?</h3>
-          <p className="text-sm text-purple-700 leading-relaxed">
+        <div className="mt-8 bg-gray-50 border border-gray-200 rounded-lg p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-3">What is Knowledge Ownership?</h3>
+          <p className="text-sm text-gray-700 leading-relaxed">
             Knowledge ownership reflects how concentrated understanding of a code area is. Extremely high concentration (one
             person knows everything) creates risk. Extremely low concentration (too many casual editors) can also dilute accountability.
             Aim for balanced distribution with redundancy for critical modules.
@@ -119,14 +118,29 @@ const KnowledgeRisk = () => {
         )}
 
         {!isProjectSpecific && (
-          <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-6">
-            <h3 className="text-lg font-medium text-blue-900 mb-3">How to Use</h3>
-            <div className="space-y-2 text-sm text-blue-800">
-              <div>• <strong>Select a Project:</strong> Pick one to view ownership, risk levels, and activity metrics</div>
-              <div>• <strong>Filters:</strong> Narrow by owner, path, risk, ownership %, or number of authors</div>
-              <div>• <strong>Bus Factor:</strong> Estimated minimum people retaining ≥60% cumulative knowledge</div>
-              <div>• <strong>Hotspots & Authors:</strong> Use chart to see concentration of activity</div>
-              <div>• <strong>Goal:</strong> Spot fragile high-ownership areas and under-owned critical paths</div>
+          <div className="mt-8 bg-gray-50 border border-gray-200 rounded-lg p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">How to Use</h3>
+            <div className="space-y-3 text-sm text-gray-700">
+              <div className="flex items-start gap-3">
+                <span className="text-gray-400 font-medium">•</span>
+                <div><strong className="text-gray-900">Select a Project:</strong> Pick one to view ownership, risk levels, and activity metrics</div>
+              </div>
+              <div className="flex items-start gap-3">
+                <span className="text-gray-400 font-medium">•</span>
+                <div><strong className="text-gray-900">Filters:</strong> Narrow by owner, path, risk, ownership %, or number of authors</div>
+              </div>
+              <div className="flex items-start gap-3">
+                <span className="text-gray-400 font-medium">•</span>
+                <div><strong className="text-gray-900">Bus Factor:</strong> Estimated minimum people retaining ≥60% cumulative knowledge</div>
+              </div>
+              <div className="flex items-start gap-3">
+                <span className="text-gray-400 font-medium">•</span>
+                <div><strong className="text-gray-900">Hotspots & Authors:</strong> Use chart to see concentration of activity</div>
+              </div>
+              <div className="flex items-start gap-3">
+                <span className="text-gray-400 font-medium">•</span>
+                <div><strong className="text-gray-900">Goal:</strong> Spot fragile high-ownership areas and under-owned critical paths</div>
+              </div>
             </div>
           </div>
         )}

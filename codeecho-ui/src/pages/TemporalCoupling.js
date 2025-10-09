@@ -1,55 +1,17 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { useApi } from '../services/ApiContext';
-
-// CSS for slider styling
-const sliderStyles = `
-  .slider-green::-webkit-slider-thumb {
-    appearance: none;
-    height: 18px;
-    width: 18px;
-    border-radius: 50%;
-    background: #10b981;
-    border: 2px solid #ffffff;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    cursor: pointer;
-  }
-  
-  .slider-green::-moz-range-thumb {
-    height: 18px;
-    width: 18px;
-    border-radius: 50%;
-    background: #10b981;
-    border: 2px solid #ffffff;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    cursor: pointer;
-  }
-  
-  .slider-green::-webkit-slider-track {
-    background: #bbf7d0;
-    height: 8px;
-    border-radius: 4px;
-  }
-  
-  .slider-green::-moz-range-track {
-    background: #bbf7d0;
-    height: 8px;
-    border-radius: 4px;
-    border: none;
-  }
-  
-  .slider-green:focus {
-    outline: none;
-    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
-  }
-`;
-
-// Inject styles
-if (typeof document !== 'undefined') {
-  const styleSheet = document.createElement('style');
-  styleSheet.textContent = sliderStyles;
-  document.head.appendChild(styleSheet);
-}
+import { 
+  FilterContainer, 
+  FilterSection, 
+  TimeRangeFilter, 
+  RangeFilter, 
+  MultiSelectFilter, 
+  ActiveFilterBadges,
+  SearchFilter,
+  QuickFilterButtons
+} from '../components/UnifiedFilters';
+import UnifiedPagination from '../components/UnifiedPagination';
 
 // Simple sortable header component
 const SortHeader = ({ label, field, currentSort, direction, onSort }) => {
@@ -57,7 +19,7 @@ const SortHeader = ({ label, field, currentSort, direction, onSort }) => {
   return (
     <th
       onClick={() => onSort(field)}
-      className={`px-4 py-2 text-left text-xs font-medium uppercase tracking-wider cursor-pointer select-none ${active ? 'text-blue-700' : 'text-gray-500'}`}
+      className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider cursor-pointer select-none transition-colors ${active ? 'text-gray-900 bg-gray-100' : 'text-gray-500 hover:text-gray-700'}`}
     >
       <span className="inline-flex items-center gap-1">
         {label}
@@ -294,253 +256,137 @@ const TemporalCoupling = () => {
         </p>
 
         {/* Filters */}
-        <div className="bg-white border border-gray-200 rounded-lg shadow-sm mb-6">
-          <div className="p-6">
-            <div className="flex flex-wrap items-center justify-between mb-6">
-              <h2 className="text-lg font-semibold text-gray-900">Filters</h2>
-              <div className="flex items-center gap-4">
-                <div className="text-sm text-gray-500 bg-gray-50 px-3 py-1 rounded-full">
-                  {loading ? 'Loading…' : `${totalItems} of ${pairs.length} pairs`}
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={applyFilters}
-                    className="px-4 py-2 bg-blue-600 text-white text-xs font-medium rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
-                    disabled={loading}
-                  >Refresh</button>
-                  <button
-                    type="button"
-                    onClick={resetFilters}
-                    className="px-4 py-2 bg-gray-100 text-gray-700 text-xs font-medium rounded-md hover:bg-gray-200"
-                  >Reset</button>
-                </div>
-              </div>
-            </div>
-            {/* Filter Sections Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-              
-              {/* Time Range Section */}
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-3 h-3 bg-amber-500 rounded-full"></div>
-                  <h3 className="text-sm font-semibold text-amber-800">Time Range</h3>
-                </div>
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs font-medium text-amber-700 mb-2">Start Date</label>
-                    <input
-                      type="date"
-                      value={startDate}
-                      onChange={e => setStartDate(e.target.value)}
-                      className="w-full px-3 py-2 border border-amber-300 rounded-md text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-amber-700 mb-2">End Date</label>
-                    <input
-                      type="date"
-                      value={endDate}
-                      onChange={e => setEndDate(e.target.value)}
-                      className="w-full px-3 py-2 border border-amber-300 rounded-md text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Thresholds Section */}
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                  <h3 className="text-sm font-semibold text-green-800">Thresholds</h3>
-                </div>
-                <div className="space-y-4">
-                  <div>
-                    <div className="flex justify-between items-center mb-2">
-                      <label className="text-xs font-medium text-green-700">Min Shared Commits</label>
-                      <span className="text-xs font-semibold text-green-800 bg-green-100 px-2 py-1 rounded">{minSharedCommits}</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="1"
-                      max="20"
-                      value={minSharedCommits}
-                      onChange={e => setMinSharedCommits(parseInt(e.target.value))}
-                      className="w-full h-2 bg-green-200 rounded-lg appearance-none cursor-pointer slider-green"
-                    />
-                    <div className="flex justify-between text-xs text-green-600 mt-1">
-                      <span>1</span>
-                      <span>20+</span>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex justify-between items-center mb-2">
-                      <label className="text-xs font-medium text-green-700">Min Coupling Score</label>
-                      <span className="text-xs font-semibold text-green-800 bg-green-100 px-2 py-1 rounded">{minCouplingScore.toFixed(1)}</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.1"
-                      value={minCouplingScore}
-                      onChange={e => setMinCouplingScore(parseFloat(e.target.value))}
-                      className="w-full h-2 bg-green-200 rounded-lg appearance-none cursor-pointer slider-green"
-                    />
-                    <div className="flex justify-between text-xs text-green-600 mt-1">
-                      <span>0.0</span>
-                      <span>1.0</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Coupling Intensity Section */}
-              <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
-                  <h3 className="text-sm font-semibold text-purple-800">Coupling Intensity</h3>
-                </div>
-                <div className="space-y-3">
-                  {/* Color legend */}
-                  <div className="flex flex-wrap items-center gap-2 text-xs">
-                    <span className="flex items-center gap-1">
-                      <span className="inline-block w-2.5 h-2.5 rounded-full bg-green-500"></span>
-                      <span className="text-purple-700">Low (&lt;0.3)</span>
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <span className="inline-block w-2.5 h-2.5 rounded-full bg-orange-500"></span>
-                      <span className="text-purple-700">Medium (0.3-0.6)</span>
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <span className="inline-block w-2.5 h-2.5 rounded-full bg-red-500"></span>
-                      <span className="text-purple-700">High (&gt;0.6)</span>
-                    </span>
-                  </div>
-                  {/* Filter buttons */}
-                  <div className="flex items-center gap-2">
-                    {['low','medium','high'].map(intensity => (
-                      <button
-                        key={intensity}
-                        type="button"
-                        onClick={() => setCouplingIntensityFilter(prev => prev === intensity ? 'all' : intensity)}
-                        className={`px-3 py-2 rounded-md border transition text-xs font-medium ${
-                          couplingIntensityFilter === intensity 
-                            ? 'bg-purple-600 text-white border-purple-600 shadow-sm' 
-                            : 'bg-white text-purple-700 border-purple-300 hover:bg-purple-50'
-                        }`}
-                      >
-                        {intensity.charAt(0).toUpperCase() + intensity.slice(1)}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="text-xs text-purple-600">
-                    Click to filter by coupling strength
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Content Filters Section */}
-            <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                <h3 className="text-sm font-semibold text-blue-800">Content Filters</h3>
-              </div>
-              
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* File Types Filter */}
-                <div className="space-y-3">
-                  <h4 className="text-xs font-medium text-blue-700 flex items-center gap-2">
-                    File Types
-                    {loadingFileTypes && <span className="text-xs text-blue-500">(loading...)</span>}
-                    {selectedFileTypes.length > 0 && (
-                      <span className="bg-blue-200 text-blue-800 text-xs px-2 py-0.5 rounded-full">
-                        {selectedFileTypes.length} selected
-                      </span>
-                    )}
-                  </h4>
+        <FilterContainer
+          loading={loading}
+          onReset={resetFilters}
+          activeFiltersCount={[
+            directoryFilter,
+            startDate,
+            endDate,
+            minSharedCommits > 2,
+            minCouplingScore > 0,
+            selectedFileTypes.length > 0,
+            couplingIntensityFilter !== 'all'
+          ].filter(Boolean).length}
+          resultCount={totalItems}
+          totalCount={pairs.length}
+        >
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Time Range Filter */}
+            <FilterSection title="Time Range" defaultOpen={true}>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
                   <input
-                    type="text"
-                    value={fileTypeSearch}
-                    onChange={e => setFileTypeSearch(e.target.value)}
-                    placeholder="Search file types..."
-                    className="w-full px-3 py-2 border border-blue-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                    type="date"
+                    value={startDate}
+                    onChange={e => setStartDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                   />
-                  <div className="border border-blue-200 rounded-md max-h-48 overflow-auto bg-white shadow-sm">
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">End Date</label>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={e => setEndDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  />
+                </div>
+              </div>
+            </FilterSection>
+
+            {/* Coupling Intensity Filter */}
+            <FilterSection title="Coupling Intensity" defaultOpen={true}>
+              <div className="space-y-4">
+                <div className="flex items-center gap-4 text-xs text-gray-600 mb-3">
+                  <span className="flex items-center gap-1">
+                    <span className="inline-block w-2 h-2 rounded-full bg-green-500"></span>
+                    Low (&lt;0.3)
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="inline-block w-2 h-2 rounded-full bg-yellow-500"></span>
+                    Medium (0.3-0.6)
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="inline-block w-2 h-2 rounded-full bg-red-500"></span>
+                    High (&gt;0.6)
+                  </span>
+                </div>
+                <QuickFilterButtons
+                  options={[
+                    { value: 'all', label: 'All Intensities' },
+                    { value: 'low', label: 'Low' },
+                    { value: 'medium', label: 'Medium' },
+                    { value: 'high', label: 'High' }
+                  ]}
+                  value={couplingIntensityFilter}
+                  onChange={setCouplingIntensityFilter}
+                />
+              </div>
+            </FilterSection>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Thresholds */}
+            <FilterSection title="Thresholds" defaultOpen={false}>
+              <div className="space-y-4">
+                <RangeFilter
+                  label="Min Shared Commits"
+                  value={minSharedCommits}
+                  onChange={setMinSharedCommits}
+                  min={1}
+                  max={20}
+                  step={1}
+                  description="Files that changed together at least this many times"
+                />
+                <RangeFilter
+                  label="Min Coupling Score"
+                  value={minCouplingScore}
+                  onChange={setMinCouplingScore}
+                  min={0}
+                  max={1}
+                  step={0.1}
+                  description="Minimum coupling strength (0.0 = weak, 1.0 = always together)"
+                />
+              </div>
+            </FilterSection>
+
+            {/* File Types Filter */}
+            <FilterSection title="File Types" defaultOpen={false} badge={selectedFileTypes.length > 0 ? `${selectedFileTypes.length} selected` : null}>
+              <MultiSelectFilter
+                label="Filter by file extensions"
+                options={projectFileTypes}
+                selected={selectedFileTypes}
+                onChange={setSelectedFileTypes}
+                searchable={true}
+              />
+            </FilterSection>
+
+            {/* Directory Filter */}
+            <FilterSection title="Directory" defaultOpen={false}>
+              <div className="space-y-3">
+                <SearchFilter
+                  value={dirSearch}
+                  onChange={setDirSearch}
+                  placeholder="Search directories..."
+                  label="Directory Search"
+                />
+                {directories.length > 0 && (
+                  <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg bg-gray-50">
                     <button
                       type="button"
-                      onClick={() => setSelectedFileTypes([])}
-                      className={`w-full text-left px-3 py-2 text-xs flex justify-between items-center border-b border-blue-100 transition ${selectedFileTypes.length === 0 ? 'bg-blue-100 text-blue-800 font-medium' : 'text-blue-700 hover:bg-blue-50'}`}
+                      onClick={() => { setDirectoryFilter(''); setDraftDirectory(''); }}
+                      className={`w-full text-left px-3 py-2 text-sm hover:bg-white transition-colors border-b border-gray-200 ${
+                        directoryFilter === '' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'
+                      }`}
                     >
-                      <span>All File Types</span>
-                      <span className="text-xs bg-blue-200 text-blue-700 rounded-full px-2 py-0.5">{projectFileTypes.length}</span>
-                    </button>
-                    {projectFileTypes
-                      .filter(ft => !fileTypeSearch || ft.toLowerCase().includes(fileTypeSearch.toLowerCase()))
-                      .map(ft => (
-                        <button
-                          key={ft}
-                          type="button"
-                          onClick={() => {
-                            if (selectedFileTypes.includes(ft)) {
-                              setSelectedFileTypes(prev => prev.filter(t => t !== ft));
-                            } else {
-                              setSelectedFileTypes(prev => [...prev, ft]);
-                            }
-                          }}
-                          className={`w-full text-left px-3 py-2 text-xs flex justify-between items-center transition hover:bg-blue-50 ${selectedFileTypes.includes(ft) ? 'bg-blue-100 text-blue-800 font-medium' : 'text-blue-700'}`}
-                        >
-                          <span className="flex items-center gap-2">
-                            <span className="text-blue-400">.</span>{ft}
-                          </span>
-                          {selectedFileTypes.includes(ft) && <span className="text-blue-600 text-xs">✓</span>}
-                        </button>
-                      ))}
-                    {projectFileTypes.filter(ft => !fileTypeSearch || ft.toLowerCase().includes(fileTypeSearch.toLowerCase())).length === 0 && !loadingFileTypes && (
-                      <div className="px-3 py-2 text-xs text-blue-500 text-center">
-                        {projectFileTypes.length === 0 ? 'No file types found' : 'No matches'}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Directory Filter */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-xs font-medium text-blue-700 flex items-center gap-2">
-                      Directory Filter
-                      {directoryFilter && (
-                        <span className="bg-blue-200 text-blue-800 text-xs px-2 py-0.5 rounded-full">
-                          Active
+                      <div className="flex items-center justify-between">
+                        <span>All Directories</span>
+                        <span className="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded-full">
+                          {directories.length}
                         </span>
-                      )}
-                    </h4>
-                    {directoryFilter && (
-                      <button 
-                        type="button" 
-                        onClick={()=>{setDirectoryFilter(''); setDraftDirectory('');}} 
-                        className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-                      >
-                        Clear
-                      </button>
-                    )}
-                  </div>
-                  <input
-                    type="text"
-                    value={dirSearch}
-                    onChange={e => setDirSearch(e.target.value)}
-                    placeholder="Search directory..."
-                    className="w-full px-3 py-2 border border-blue-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-                  />
-                  <div className="border border-blue-200 rounded-md max-h-40 overflow-auto bg-white shadow-sm">
-                    <button
-                      type="button"
-                      onClick={()=>{setDirectoryFilter(''); setDraftDirectory('');}}
-                      className={`w-full text-left px-3 py-2 text-xs flex justify-between items-center border-b border-blue-100 transition ${directoryFilter===''?'bg-blue-100 text-blue-800 font-medium':'text-blue-700 hover:bg-blue-50'}`}
-                    >
-                      <span>All Directories</span>
-                      <span className="text-xs bg-blue-200 text-blue-700 rounded-full px-2 py-0.5">{directories.length}</span>
+                      </div>
                     </button>
                     {directories
                       .filter(d => !dirSearch || d.toLowerCase().includes(dirSearch.toLowerCase()))
@@ -548,130 +394,52 @@ const TemporalCoupling = () => {
                         <button
                           key={d}
                           type="button"
-                          onClick={()=>{setDirectoryFilter(d); setDraftDirectory(d); setPage(1);}}
-                          className={`w-full text-left px-3 py-2 text-xs transition hover:bg-blue-50 ${directoryFilter===d?'bg-blue-100 text-blue-800 font-medium':'text-blue-700'}`}
+                          onClick={() => { setDirectoryFilter(d); setDraftDirectory(d); setPage(1); }}
+                          className={`w-full text-left px-3 py-2 text-sm hover:bg-white transition-colors border-b border-gray-200 last:border-b-0 ${
+                            directoryFilter === d ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'
+                          }`}
                         >
                           <span className="truncate">{d}</span>
                         </button>
                       ))}
-                    {directories.filter(d => !dirSearch || d.toLowerCase().includes(dirSearch.toLowerCase())).length===0 && (
-                      <div className="px-3 py-2 text-xs text-blue-500 text-center">No matches</div>
+                    {directories.filter(d => !dirSearch || d.toLowerCase().includes(dirSearch.toLowerCase())).length === 0 && (
+                      <div className="px-3 py-2 text-sm text-gray-500">No matches found</div>
                     )}
                   </div>
-                </div>
-              </div>
-            </div>
-            {/* Active Filter Badges */}
-            <div className="mt-6 pt-4 border-t border-gray-200">
-              <div className="flex flex-wrap gap-3 text-xs">
-                {directoryFilter && (
-                  <span className="inline-flex items-center gap-2 bg-blue-100 text-blue-800 border border-blue-300 px-3 py-2 rounded-lg font-medium shadow-sm">
-                    <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
-                    Directory: {directoryFilter}
-                    <button 
-                      className="text-blue-600 hover:text-blue-800 ml-1 font-semibold" 
-                      onClick={() => setDirectoryFilter('')}
-                    >
-                      ✕
-                    </button>
-                  </span>
-                )}
-                {startDate && (
-                  <span className="inline-flex items-center gap-2 bg-amber-100 text-amber-800 border border-amber-300 px-3 py-2 rounded-lg font-medium shadow-sm">
-                    <span className="w-2 h-2 bg-amber-500 rounded-full"></span>
-                    From: {startDate}
-                    <button 
-                      className="text-amber-600 hover:text-amber-800 ml-1 font-semibold" 
-                      onClick={() => { setStartDate(''); fetchPairs(); }}
-                    >
-                      ✕
-                    </button>
-                  </span>
-                )}
-                {endDate && (
-                  <span className="inline-flex items-center gap-2 bg-amber-100 text-amber-800 border border-amber-300 px-3 py-2 rounded-lg font-medium shadow-sm">
-                    <span className="w-2 h-2 bg-amber-500 rounded-full"></span>
-                    To: {endDate}
-                    <button 
-                      className="text-amber-600 hover:text-amber-800 ml-1 font-semibold" 
-                      onClick={() => { setEndDate(''); fetchPairs(); }}
-                    >
-                      ✕
-                    </button>
-                  </span>
-                )}
-                {minSharedCommits > 2 && (
-                  <span className="inline-flex items-center gap-2 bg-green-100 text-green-800 border border-green-300 px-3 py-2 rounded-lg font-medium shadow-sm">
-                    <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                    Min Shared: {minSharedCommits}
-                    <button 
-                      className="text-green-600 hover:text-green-800 ml-1 font-semibold" 
-                      onClick={() => setMinSharedCommits(2)}
-                    >
-                      ✕
-                    </button>
-                  </span>
-                )}
-                {minCouplingScore > 0 && (
-                  <span className="inline-flex items-center gap-2 bg-green-100 text-green-800 border border-green-300 px-3 py-2 rounded-lg font-medium shadow-sm">
-                    <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                    Min Score: {minCouplingScore.toFixed(1)}
-                    <button 
-                      className="text-green-600 hover:text-green-800 ml-1 font-semibold" 
-                      onClick={() => setMinCouplingScore(0)}
-                    >
-                      ✕
-                    </button>
-                  </span>
-                )}
-                {selectedFileTypes.length > 0 && (
-                  <span className="inline-flex items-center gap-2 bg-blue-100 text-blue-800 border border-blue-300 px-3 py-2 rounded-lg font-medium shadow-sm">
-                    <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
-                    Types: {selectedFileTypes.length === 1 ? selectedFileTypes[0] : `${selectedFileTypes.length} selected`}
-                    <button 
-                      className="text-blue-600 hover:text-blue-800 ml-1 font-semibold" 
-                      onClick={() => setSelectedFileTypes([])}
-                    >
-                      ✕
-                    </button>
-                  </span>
-                )}
-                {couplingIntensityFilter !== 'all' && (
-                  <span className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg font-medium shadow-sm border ${
-                    couplingIntensityFilter === 'high' ? 'bg-red-100 text-red-800 border-red-300' :
-                    couplingIntensityFilter === 'medium' ? 'bg-orange-100 text-orange-800 border-orange-300' :
-                    'bg-green-100 text-green-800 border-green-300'
-                  }`}>
-                    <span className={`w-2 h-2 rounded-full ${
-                      couplingIntensityFilter === 'high' ? 'bg-red-500' :
-                      couplingIntensityFilter === 'medium' ? 'bg-orange-500' :
-                      'bg-green-500'
-                    }`}></span>
-                    Intensity: {couplingIntensityFilter.charAt(0).toUpperCase() + couplingIntensityFilter.slice(1)}
-                    <button 
-                      className={`ml-1 font-semibold ${
-                        couplingIntensityFilter === 'high' ? 'text-red-600 hover:text-red-800' :
-                        couplingIntensityFilter === 'medium' ? 'text-orange-600 hover:text-orange-800' :
-                        'text-green-600 hover:text-green-800'
-                      }`}
-                      onClick={() => setCouplingIntensityFilter('all')}
-                    >
-                      ✕
-                    </button>
-                  </span>
-                )}
-                {!directoryFilter && !startDate && !endDate && minSharedCommits <= 2 && minCouplingScore <= 0 && selectedFileTypes.length === 0 && couplingIntensityFilter === 'all' && (
-                  <span className="text-sm text-gray-500 bg-gray-50 px-4 py-2 rounded-lg border border-gray-200">
-                    No filters applied
-                  </span>
                 )}
               </div>
-            </div>
+            </FilterSection>
           </div>
-        </div>
+
+          {/* Active Filter Badges */}
+          <div className="pt-4 border-t border-gray-100">
+            <ActiveFilterBadges
+              filters={[
+                directoryFilter && { key: 'directory', label: `Directory: ${directoryFilter}`, color: 'bg-purple-100 text-purple-800 border border-purple-200' },
+                startDate && { key: 'startDate', label: `From: ${startDate}`, color: 'bg-blue-100 text-blue-800 border border-blue-200' },
+                endDate && { key: 'endDate', label: `To: ${endDate}`, color: 'bg-blue-100 text-blue-800 border border-blue-200' },
+                minSharedCommits > 2 && { key: 'minShared', label: `Min Shared: ${minSharedCommits}`, color: 'bg-green-100 text-green-800 border border-green-200' },
+                minCouplingScore > 0 && { key: 'minScore', label: `Min Score: ${minCouplingScore.toFixed(1)}`, color: 'bg-orange-100 text-orange-800 border border-orange-200' },
+                selectedFileTypes.length > 0 && { key: 'fileTypes', label: `Types: ${selectedFileTypes.length === 1 ? selectedFileTypes[0] : `${selectedFileTypes.length} selected`}`, color: 'bg-indigo-100 text-indigo-800 border border-indigo-200' },
+                couplingIntensityFilter !== 'all' && { key: 'intensity', label: `Intensity: ${couplingIntensityFilter.charAt(0).toUpperCase() + couplingIntensityFilter.slice(1)}`, color: 'bg-amber-100 text-amber-800 border border-amber-200' }
+              ].filter(Boolean)}
+              onRemove={(key) => {
+                switch(key) {
+                  case 'directory': setDirectoryFilter(''); setDraftDirectory(''); break;
+                  case 'startDate': setStartDate(''); break;
+                  case 'endDate': setEndDate(''); break;
+                  case 'minShared': setMinSharedCommits(2); break;
+                  case 'minScore': setMinCouplingScore(0); break;
+                  case 'fileTypes': setSelectedFileTypes([]); break;
+                  case 'intensity': setCouplingIntensityFilter('all'); break;
+                }
+              }}
+            />
+          </div>
+        </FilterContainer>
 
         {/* Table */}
-        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow">
+        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200 text-sm">
               <thead className="bg-gray-50">
@@ -687,32 +455,36 @@ const TemporalCoupling = () => {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {loading && (
-                  <tr><td colSpan={7} className="p-4 text-center text-gray-500">Loading...</td></tr>
+                  <tr><td colSpan={7} className="p-8 text-center text-gray-500">Loading...</td></tr>
                 )}
                 {!loading && error && (
-                  <tr><td colSpan={7} className="p-4 text-center text-red-600">{error}</td></tr>
+                  <tr><td colSpan={7} className="p-8 text-center text-red-600">{error}</td></tr>
                 )}
                 {!loading && !error && filteredPairs.length === 0 && (
-                  <tr><td colSpan={7} className="p-4 text-center text-gray-500">No coupling pairs found.</td></tr>
+                  <tr><td colSpan={7} className="p-8 text-center text-gray-500">No coupling pairs found.</td></tr>
                 )}
                 {!loading && !error && pagedPairs.map((p, idx) => (
-                  <tr key={idx} className="hover:bg-gray-50">
-                    <td className="px-4 py-2 font-mono text-xs whitespace-pre-wrap max-w-xs break-words">{p.file_a}</td>
-                    <td className="px-4 py-2 font-mono text-xs whitespace-pre-wrap max-w-xs break-words">{p.file_b}</td>
-                    <td className="px-4 py-2 text-center">{p.shared_commits}</td>
-                    <td className="px-4 py-2 text-center">{p.total_commits_a}</td>
-                    <td className="px-4 py-2 text-center">{p.total_commits_b}</td>
-                    <td className="px-4 py-2 text-center">
+                  <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-4 py-3 font-mono text-xs whitespace-pre-wrap max-w-xs break-words text-gray-900">{p.file_a}</td>
+                    <td className="px-4 py-3 font-mono text-xs whitespace-pre-wrap max-w-xs break-words text-gray-900">{p.file_b}</td>
+                    <td className="px-4 py-3 text-center font-medium text-gray-900">{p.shared_commits}</td>
+                    <td className="px-4 py-3 text-center text-gray-600">{p.total_commits_a}</td>
+                    <td className="px-4 py-3 text-center text-gray-600">{p.total_commits_b}</td>
+                    <td className="px-4 py-3 text-center">
                       {(() => {
                         const intensity = getCouplingIntensity(p.coupling_score);
+                        const score = p.coupling_score.toFixed(2);
+                        const colorClass = intensity.category === 'high' ? 'text-red-600' : 
+                                         intensity.category === 'medium' ? 'text-yellow-600' : 
+                                         'text-green-600';
                         return (
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${intensity.bgColor} ${intensity.textColor} border ${intensity.borderColor}`}>
-                            {p.coupling_score.toFixed(2)}
+                          <span className={`font-medium ${colorClass}`}>
+                            {score}
                           </span>
                         );
                       })()}
                     </td>
-                    <td className="px-4 py-2 text-xs text-gray-500">{p.last_modified?.replace('T',' ').replace('Z','')}</td>
+                    <td className="px-4 py-3 text-xs text-gray-500">{p.last_modified?.replace('T',' ').replace('Z','')}</td>
                   </tr>
                 ))}
               </tbody>
@@ -720,41 +492,20 @@ const TemporalCoupling = () => {
           </div>
           {/* Pagination Controls */}
           {!loading && !error && totalItems > 0 && (
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t px-4 py-3 bg-gray-50">
-              <div className="text-xs text-gray-600">
-                Showing {(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, totalItems)} of {totalItems} pairs
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <label className="text-xs text-gray-500">Rows:</label>
-                <select
-                  value={pageSize}
-                  onChange={e => setPageSize(Number(e.target.value))}
-                  className="text-xs border rounded px-2 py-1"
-                >
-                  {[25,50,100,200].map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-                <div className="flex items-center gap-1 ml-2">
-                  <button
-                    onClick={() => setPage(p => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                    className="px-2 py-1 text-xs border rounded disabled:opacity-40 hover:bg-white bg-gray-100"
-                  >Prev</button>
-                  <span className="text-xs text-gray-700 px-1">Page {currentPage} / {totalPages}</span>
-                  <button
-                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages}
-                    className="px-2 py-1 text-xs border rounded disabled:opacity-40 hover:bg-white bg-gray-100"
-                  >Next</button>
-                </div>
-              </div>
-            </div>
+            <UnifiedPagination
+              currentPage={currentPage}
+              pageSize={pageSize}
+              totalItems={totalItems}
+              onPageChange={(p) => setPage(Math.max(1, Math.min(p, totalPages)))}
+              onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
+            />
           )}
         </div>
 
         {/* Explanation Panel */}
-        <div className="mt-8 bg-blue-50 border border-blue-200 rounded-md p-4">
-          <h2 className="text-sm font-semibold text-blue-900 mb-2">How to Interpret Coupling</h2>
-          <ul className="text-xs text-blue-800 space-y-1 list-disc pl-4">
+        <div className="mt-8 bg-gray-50 border border-gray-200 rounded-lg p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-3">How to Interpret Coupling</h2>
+          <ul className="text-sm text-gray-700 space-y-2 list-disc pl-5">
             <li>Score = shared_commits / min(total_commits_a, total_commits_b)</li>
             <li>1.00 means every commit of the less-frequent file also touched the other file.</li>
             <li>High scores across modules may indicate hidden architecture seams or feature scattering.</li>

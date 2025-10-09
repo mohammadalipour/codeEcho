@@ -480,11 +480,11 @@ const Projects = () => {
   if (error) {
     return (
       <div className="px-4 sm:px-6 lg:px-8">
-        <div className="bg-red-50 border border-red-200 rounded-md p-4">
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
           <div className="flex">
             <div className="ml-3">
-              <h3 className="text-sm font-medium text-red-800">Error loading projects</h3>
-              <div className="mt-2 text-sm text-red-700">
+              <h3 className="text-lg font-semibold text-gray-900">Error loading projects</h3>
+              <div className="mt-2 text-sm text-gray-700">
                 <p>{error}</p>
               </div>
             </div>

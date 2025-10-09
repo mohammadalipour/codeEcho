@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useApi } from '../services/ApiContext';
 import { 
   BarChart, 
@@ -10,38 +10,22 @@ import {
   ResponsiveContainer 
 } from 'recharts';
 import { 
-  ChevronUpIcon, 
-  ChevronDownIcon, 
-  ChevronRightIcon,
   ExclamationTriangleIcon,
   UsersIcon,
   DocumentIcon,
-  ChartBarIcon
+  ChartBarIcon,
+  XMarkIcon
 } from '@heroicons/react/24/outline';
-
-// Time range summary helper component
-function TimeRangeSummary({ timeRange, customStart, customEnd }) {
-  const text = useMemo(() => {
-    if (timeRange === '3m') return 'Last 3 months';
-    if (timeRange === '6m') return 'Last 6 months';
-    if (timeRange === '1y') return 'Last 12 months';
-    if (timeRange === 'custom') {
-      if (!customStart && !customEnd) return 'Select start/end';
-      if (customStart && !customEnd) return `${customStart} → today`;
-      if (!customStart && customEnd) return `… → ${customEnd}`;
-      return `${customStart} → ${customEnd}`;
-    }
-    return '';
-  }, [timeRange, customStart, customEnd]);
-  return (
-    <div className="mt-1 text-[10px] text-gray-500 flex items-center gap-1">
-      <span className="inline-block px-1.5 py-0.5 bg-gray-100 rounded">{text}</span>
-      {timeRange === 'custom' && customStart && customEnd && customStart > customEnd && (
-        <span className="text-red-600">Start after end!</span>
-      )}
-    </div>
-  );
-}
+import { 
+  FilterContainer, 
+  FilterSection, 
+  RangeFilter, 
+  MultiSelectFilter, 
+  ActiveFilterBadges,
+  QuickFilterButtons,
+  TimeRangeFilter
+} from './UnifiedFilters';
+import UnifiedPagination from './UnifiedPagination';
 
 const KnowledgeRiskView = ({ projectId, className = "" }) => {
   const { api } = useApi();
@@ -54,10 +38,7 @@ const KnowledgeRiskView = ({ projectId, className = "" }) => {
 
   // New filter state (merged from former KnowledgeOwnership page)
   const [selectedOwners, setSelectedOwners] = useState([]); // multi-select owners
-  const [ownerFilterTerm, setOwnerFilterTerm] = useState('');
-  const [ownerMenuOpen, setOwnerMenuOpen] = useState(false);
   const [directoryPath, setDirectoryPath] = useState([]); // array of segments representing current directory selection
-  const [dirMenuOpen, setDirMenuOpen] = useState(false);
   const [riskLevel, setRiskLevel] = useState('all'); // high | medium | low | all
   const [minOwnership, setMinOwnership] = useState(0);
   const [maxAuthors, setMaxAuthors] = useState('');
@@ -69,46 +50,27 @@ const KnowledgeRiskView = ({ projectId, className = "" }) => {
   const [pageSize, setPageSize] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
   // Time range
-  const [timeRange, setTimeRange] = useState('3m'); // 3m | 6m | 1y | custom
+  // unified presets: 'all' | '3months' | '6months' | '1year' | 'custom'
+  const [timeRange, setTimeRange] = useState('3months');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
   // File types (multi-select)
-  const [fileTypesOpen, setFileTypesOpen] = useState(false);
   const [selectedFileTypes, setSelectedFileTypes] = useState([]); // e.g. ['.js', '.py']
-  const [fileTypeSearch, setFileTypeSearch] = useState('');
-  // Refs for outside click
-  const ownerMenuRef = useRef(null);
-  const dirMenuRef = useRef(null);
-  const fileTypesMenuRef = useRef(null);
-
-  // Outside click close for dropdowns
-  useEffect(() => {
-    const handler = (e) => {
-      if (ownerMenuOpen && ownerMenuRef.current && !ownerMenuRef.current.contains(e.target)) {
-        setOwnerMenuOpen(false);
-      }
-      if (dirMenuOpen && dirMenuRef.current && !dirMenuRef.current.contains(e.target)) {
-        setDirMenuOpen(false);
-      }
-      if (fileTypesOpen && fileTypesMenuRef.current && !fileTypesMenuRef.current.contains(e.target)) {
-        setFileTypesOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [ownerMenuOpen, dirMenuOpen, fileTypesOpen]);
+  
 
   const computeRange = () => {
     const now = new Date();
     let start = null;
-    if (timeRange === '3m') {
+    if (timeRange === '3months') {
       const d = new Date(now); d.setMonth(d.getMonth() - 3); start = d;
-    } else if (timeRange === '6m') {
+    } else if (timeRange === '6months') {
       const d = new Date(now); d.setMonth(d.getMonth() - 6); start = d;
-    } else if (timeRange === '1y') {
+    } else if (timeRange === '1year') {
       const d = new Date(now); d.setFullYear(d.getFullYear() - 1); start = d;
     } else if (timeRange === 'custom') {
       if (customStart) start = new Date(customStart);
+    } else if (timeRange === 'all') {
+      start = null;
     }
     const end = timeRange === 'custom' && customEnd ? new Date(customEnd) : now;
     const fmt = (d) => d ? d.toISOString().split('T')[0] : null;
@@ -129,7 +91,14 @@ const KnowledgeRiskView = ({ projectId, className = "" }) => {
         if (parsed.riskLevel) setRiskLevel(parsed.riskLevel);
         if (typeof parsed.minOwnership !== 'undefined') setMinOwnership(parsed.minOwnership);
         if (typeof parsed.maxAuthors !== 'undefined') setMaxAuthors(parsed.maxAuthors);
-        if (parsed.timeRange) setTimeRange(parsed.timeRange);
+        if (parsed.timeRange) {
+          // migrate old keys (3m/6m/1y) to unified presets
+          const mapped = parsed.timeRange === '3m' ? '3months'
+            : parsed.timeRange === '6m' ? '6months'
+            : parsed.timeRange === '1y' ? '1year'
+            : parsed.timeRange;
+          setTimeRange(mapped);
+        }
         if (parsed.customStart) setCustomStart(parsed.customStart);
         if (parsed.customEnd) setCustomEnd(parsed.customEnd);
         if (parsed.selectedFileTypes) setSelectedFileTypes(parsed.selectedFileTypes);
@@ -271,6 +240,25 @@ const KnowledgeRiskView = ({ projectId, className = "" }) => {
       .sort((a,b)=>a.name.localeCompare(b.name));
   }, [currentDirNode]);
 
+  // counts for owners and file types (for MultiSelectFilter badges)
+  const ownerCounts = useMemo(() => {
+    const counts = {};
+    processedFileData.forEach(f => {
+      if (!f.primaryAuthor) return;
+      counts[f.primaryAuthor] = (counts[f.primaryAuthor] || 0) + 1;
+    });
+    return counts;
+  }, [processedFileData]);
+
+  const fileTypeCounts = useMemo(() => {
+    const counts = {};
+    processedFileData.forEach(f => {
+      if (!f.ext) return;
+      counts[f.ext] = (counts[f.ext] || 0) + 1;
+    });
+    return counts;
+  }, [processedFileData]);
+
   const filteredData = useMemo(() => {
     const dirPrefix = directoryPath.length ? directoryPath.join('/') + '/' : '';
     return processedFileData.filter(f => {
@@ -365,8 +353,8 @@ const KnowledgeRiskView = ({ projectId, className = "" }) => {
     });
   };
 
-  const activeFilterCount = [selectedOwners.length>0, directoryPath.length>0, riskLevel !== 'all', Number(minOwnership) > 0, !!maxAuthors, selectedFileTypes.length>0].filter(Boolean).length;
-  const resetFilters = () => { setSelectedOwners([]); setOwnerFilterTerm(''); setDirectoryPath([]); setRiskLevel('all'); setMinOwnership(0); setMaxAuthors(''); setSelectedFileTypes([]); setFileTypeSearch(''); };
+  const activeFilterCount = [selectedOwners.length>0, directoryPath.length>0, riskLevel !== 'all', Number(minOwnership) > 0, !!maxAuthors, selectedFileTypes.length>0, (timeRange && timeRange!=='3months') || (timeRange==='custom' && (customStart||customEnd))].filter(Boolean).length;
+  const resetFilters = () => { setSelectedOwners([]); setDirectoryPath([]); setRiskLevel('all'); setMinOwnership(0); setMaxAuthors(''); setSelectedFileTypes([]); setTimeRange('3months'); setCustomStart(''); setCustomEnd(''); };
 
   const onChangeTimeRange = (val) => {
     setTimeRange(val);
@@ -422,228 +410,124 @@ const KnowledgeRiskView = ({ projectId, className = "" }) => {
         </div>
       </div>
 
-      {/* Filter Panel (Improved) */}
-      <div className="bg-white rounded-lg shadow px-6 pt-4 pb-3">
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-          <div className="flex items-center gap-2 text-gray-700 font-medium">
-            <span className="flex items-center gap-1">Filters {activeFilterCount>0 && <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-blue-100 text-blue-700">{activeFilterCount}</span>}</span>
-            <span className="text-xs text-gray-400 font-normal">Showing {totalItems === 0 ? 0 : startIndex + 1}-{endIndex} of {totalItems}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <button onClick={resetFilters} className="text-xs px-3 py-1.5 rounded-md border border-gray-300 bg-gray-50 hover:bg-gray-100">Reset</button>
-          </div>
-        </div>
-    {/* Basic Filters - Two Column Layout */}
-  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <div className="relative">
-            <label className="flex items-center text-[11px] font-medium text-gray-600 mb-1 gap-1">Owners</label>
-            <button type="button" onClick={()=>setOwnerMenuOpen(o=>!o)} className="w-full h-10 px-3 text-left border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center justify-between hover:border-gray-400">
-              <span className="truncate">{selectedOwners.length ? `${selectedOwners.length} selected` : 'All Owners'}</span>
-              <ChevronDownIcon className={`h-4 w-4 transition ${ownerMenuOpen ? 'rotate-180': ''}`} />
-            </button>
-            {ownerMenuOpen && (
-              <div ref={ownerMenuRef} className="absolute z-30 mt-1 w-72 bg-white border border-gray-200 rounded-md shadow-lg p-2 text-xs space-y-2 max-h-80 overflow-auto">
-                <div className="flex items-center gap-2">
-                  <input
-                    value={ownerFilterTerm}
-                    onChange={e=>setOwnerFilterTerm(e.target.value)}
-                    placeholder="Search..."
-                    className="flex-1 px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  />
-                  {selectedOwners.length>0 && <button onClick={()=>setSelectedOwners([])} className="text-[10px] text-blue-600 hover:underline">Clear</button>}
-                </div>
-                <div className="flex items-center gap-2 text-[10px] pt-1 border-t border-gray-100">
-                  <button type="button" onClick={()=>setSelectedOwners(distinctOwners)} className="px-2 py-0.5 rounded bg-gray-100 hover:bg-gray-200">Select All</button>
-                  <button type="button" onClick={()=>setSelectedOwners([])} className="px-2 py-0.5 rounded bg-gray-100 hover:bg-gray-200">Clear All</button>
-                  <span className="ml-auto text-gray-400">{selectedOwners.length}/{distinctOwners.length}</span>
-                </div>
-                <div className="space-y-1">
-                  {distinctOwners.filter(o=>!ownerFilterTerm || o.toLowerCase().includes(ownerFilterTerm.toLowerCase())).map(o => {
-                    const checked = selectedOwners.includes(o);
-                    return (
-                      <label key={o} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 px-1 py-0.5 rounded">
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => setSelectedOwners(prev => checked ? prev.filter(x=>x!==o) : [...prev, o])}
-                        />
-                        <span className="truncate">{o}</span>
-                      </label>
-                    );
-                  })}
-                  {distinctOwners.length===0 && <div className="text-gray-400">No authors</div>}
-                </div>
-                <div className="pt-2 border-t border-gray-100 flex justify-end">
-                  <button onClick={()=>setOwnerMenuOpen(false)} className="text-[11px] text-blue-600 hover:underline">Close</button>
-                </div>
+      {/* Unified Filter Panel */}
+      <FilterContainer
+        loading={loading}
+        onReset={resetFilters}
+        activeFiltersCount={activeFilterCount}
+        resultCount={sortedData.length}
+      >
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Time Range & Risk Level */}
+          <FilterSection title="Time Range & Risk Level" defaultOpen={true}>
+            <div className="space-y-4">
+              <div>
+                <TimeRangeFilter
+                  value={timeRange}
+                  onChange={onChangeTimeRange}
+                  startDate={customStart}
+                  endDate={customEnd}
+                  onDateChange={(which, value) => which === 'start' ? setCustomStart(value) : setCustomEnd(value)}
+                />
               </div>
-            )}
-          </div>
-          <div className="relative">
-            <label className="flex items-center text-[11px] font-medium text-gray-600 mb-1 gap-1">Directory</label>
-            <button type="button" onClick={()=>setDirMenuOpen(o=>!o)} className="w-full h-10 px-3 text-left border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center justify-between hover:border-gray-400">
-              <span className="truncate">{directoryPath.length ? '/' + directoryPath.join('/') : 'All Directories'}</span>
-              <ChevronDownIcon className={`h-4 w-4 transition ${dirMenuOpen ? 'rotate-180': ''}`} />
-            </button>
-            {dirMenuOpen && (
-              <div ref={dirMenuRef} className="absolute z-30 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg p-2 text-xs max-h-80 overflow-auto">
-                <div className="flex items-center justify-between mb-2 gap-2">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-1 text-[10px] text-blue-700">
-                      <button type="button" onClick={()=>setDirectoryPath([])} className="hover:underline">root</button>
-                      {directoryPath.map((seg, idx) => (
-                        <React.Fragment key={idx}>
-                          <span className="text-gray-400">/</span>
-                          <button type="button" onClick={()=>setDirectoryPath(directoryPath.slice(0, idx+1))} className="hover:underline truncate max-w-[80px]">{seg}</button>
-                        </React.Fragment>
-                      ))}
-                    </div>
-                  </div>
-                  {directoryPath.length>0 && <button className="text-[10px] text-blue-600 whitespace-nowrap" onClick={()=>setDirectoryPath(p=>p.slice(0,-1))}>Up</button>}
-                </div>
-                {directoryChildren.map(d => (
-                  <button
-                    key={d.name}
-                    type="button"
-                    onClick={()=>setDirectoryPath(p=>[...p, d.name])}
-                    className="w-full flex items-center justify-between px-2 py-1 rounded hover:bg-gray-50 text-left"
-                  >
-                    <span className="truncate">{d.name}</span>
-                    <span className="text-[10px] text-gray-400">{d.count}</span>
-                  </button>
-                ))}
-                {directoryChildren.length===0 && <div className="text-gray-400 px-2 py-1">No subfolders</div>}
-                <div className="mt-2 pt-2 border-t border-gray-100 flex justify-between">
-                  <button onClick={()=>setDirectoryPath([])} className="text-[10px] text-blue-600 hover:underline">Clear</button>
-                  <button onClick={()=>setDirMenuOpen(false)} className="text-[10px] text-blue-600 hover:underline">Close</button>
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Risk Level</label>
+                <QuickFilterButtons
+                  options={[
+                    { value: 'all', label: 'All' },
+                    { value: 'high', label: 'High' },
+                    { value: 'medium', label: 'Medium' },
+                    { value: 'low', label: 'Low' }
+                  ]}
+                  value={riskLevel}
+                  onChange={setRiskLevel}
+                />
               </div>
-            )}
-          </div>
-          {/* Time Range (Improved) */}
-          <div className="relative flex flex-col">
-            <label className="flex items-center text-[11px] font-medium text-gray-600 mb-1 gap-1">Time Range</label>
-            <div className="flex flex-wrap gap-1.5 mb-1">
-              {[
-                {key:'3m', label:'3M'},
-                {key:'6m', label:'6M'},
-                {key:'1y', label:'1Y'},
-                {key:'custom', label:'Custom'}
-              ].map(r => (
-                <button
-                  key={r.key}
-                  type="button"
-                  onClick={()=>onChangeTimeRange(r.key)}
-                  className={`px-2.5 py-1 text-[11px] rounded-md border transition ${timeRange===r.key ? 'bg-blue-600 text-white border-blue-600 shadow-sm':'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
-                >{r.label}</button>
-              ))}
             </div>
-            {timeRange === 'custom' && (
-              <div className="flex items-end gap-2">
-                <div className="flex-1">
-                  <label className="flex items-center text-[10px] font-medium text-gray-500 mb-0.5">Start</label>
-                  <input type="date" value={customStart} onChange={e=>setCustomStart(e.target.value)} className="w-full h-9 px-2 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-                <div className="flex-1">
-                  <label className="flex items-center text-[10px] font-medium text-gray-500 mb-0.5">End</label>
-                  <input type="date" value={customEnd} onChange={e=>setCustomEnd(e.target.value)} className="w-full h-9 px-2 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
+          </FilterSection>
+
+          {/* Ownership & Contributors */}
+          <FilterSection title="Ownership & Contributors" defaultOpen={true}>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Min Ownership %</label>
+                <RangeFilter
+                  label=""
+                  value={Number(minOwnership) || 0}
+                  onChange={(v)=>setMinOwnership(v)}
+                  min={0}
+                  max={100}
+                  step={5}
+                />
               </div>
-            )}
-            <TimeRangeSummary timeRange={timeRange} customStart={customStart} customEnd={customEnd} />
-          </div>
-          {/* File Types */}
-          <div className="relative">
-            <label className="flex items-center text-[11px] font-medium text-gray-600 mb-1 gap-1">File Types</label>
-            <button type="button" onClick={()=>setFileTypesOpen(o=>!o)} className="w-full h-10 px-3 text-left border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center justify-between hover:border-gray-400">
-              <span className="truncate">{selectedFileTypes.length ? `${selectedFileTypes.length} selected` : 'All Types'}</span>
-              <ChevronDownIcon className={`h-4 w-4 transition ${fileTypesOpen ? 'rotate-180': ''}`} />
-            </button>
-            {fileTypesOpen && (
-              <div ref={fileTypesMenuRef} className="absolute z-30 mt-1 w-64 bg-white border border-gray-200 rounded-md shadow-lg p-2 text-xs space-y-2 max-h-80 overflow-auto">
-                <div className="flex items-center gap-2">
-                  <input
-                    value={fileTypeSearch}
-                    onChange={e=>setFileTypeSearch(e.target.value)}
-                    placeholder="Search..."
-                    className="flex-1 px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  />
-                  {selectedFileTypes.length>0 && <button onClick={()=>setSelectedFileTypes([])} className="text-[10px] text-blue-600 hover:underline">Clear</button>}
-                </div>
-                <div className="flex items-center gap-2 text-[10px] pt-1 border-t border-gray-100">
-                  <button type="button" onClick={()=>setSelectedFileTypes(distinctFileTypes)} className="px-2 py-0.5 rounded bg-gray-100 hover:bg-gray-200">Select All</button>
-                  <button type="button" onClick={()=>setSelectedFileTypes([])} className="px-2 py-0.5 rounded bg-gray-100 hover:bg-gray-200">Clear All</button>
-                  <span className="ml-auto text-gray-400">{selectedFileTypes.length}/{distinctFileTypes.length}</span>
-                </div>
-                <div className="space-y-1">
-                  {distinctFileTypes
-                    .filter(t=>!fileTypeSearch || t.toLowerCase().includes(fileTypeSearch.toLowerCase()))
-                    .map(t => {
-                      const checked = selectedFileTypes.includes(t);
-                      return (
-                        <label key={t} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 px-1 py-0.5 rounded">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => setSelectedFileTypes(prev => checked ? prev.filter(x=>x!==t) : [...prev, t])}
-                          />
-                          <span className="truncate">{t}</span>
-                        </label>
-                      );
-                    })}
-                  {distinctFileTypes.length===0 && <div className="text-gray-400">No types</div>}
-                </div>
-                <div className="pt-2 border-t border-gray-100 flex justify-end">
-                  <button onClick={()=>setFileTypesOpen(false)} className="text-[11px] text-blue-600 hover:underline">Close</button>
-                </div>
+              <div>
+                <MultiSelectFilter
+                  label="Authors"
+                  options={distinctOwners.slice(0, 10)} // Limit to top 10 for performance
+                  selected={selectedOwners}
+                  onChange={setSelectedOwners}
+                  searchable={true}
+                  counts={ownerCounts}
+                />
               </div>
-            )}
-          </div>
+              <div>
+                <MultiSelectFilter
+                  label="File Types"
+                  options={distinctFileTypes}
+                  selected={selectedFileTypes}
+                  onChange={setSelectedFileTypes}
+                  searchable={false}
+                  counts={fileTypeCounts}
+                />
+              </div>
+            </div>
+          </FilterSection>
         </div>
-        {/* Advanced Toggle */}
-        <AdvancedFilters
-          minOwnership={minOwnership}
-          setMinOwnership={setMinOwnership}
-          maxAuthors={maxAuthors}
-            setMaxAuthors={setMaxAuthors}
-          riskLevel={riskLevel}
-          setRiskLevel={setRiskLevel}
-        />
-        {/* Quick Risk Badges */}
-        <div className="mt-3 flex flex-wrap items-center gap-4 text-[11px]">
-          <div className="flex items-center gap-3 select-none">
-            <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-full bg-red-500" />High</span>
-            <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-full bg-amber-500" />Medium</span>
-            <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-full bg-green-500" />Low</span>
-          </div>
-          <div className="flex items-center gap-1">
-            {['high','medium','low'].map(r => (
+
+        {/* Directory Filter - Show when active */}
+        {directoryPath.length > 0 && (
+          <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-blue-700 font-medium">Directory:</span>
+                <code className="text-blue-800 font-mono bg-white px-2 py-1 rounded">/{directoryPath.join('/')}</code>
+              </div>
               <button
-                key={r}
-                type="button"
-                onClick={() => setRiskLevel(prev => prev === r ? 'all' : r)}
-                className={`px-2 py-1 rounded-md border transition ${riskLevel===r ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
-              >{r.charAt(0).toUpperCase()+r.slice(1)}</button>
-            ))}
+                onClick={() => setDirectoryPath([])}
+                className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+              >
+                Clear
+              </button>
+            </div>
           </div>
-        </div>
+        )}
+
         {/* Active Filter Badges */}
-        <div className="flex flex-wrap gap-2 mt-3 text-[11px]">
-          {selectedOwners.map(o => (
-            <span key={o} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">{o}<button onClick={()=>setSelectedOwners(prev=>prev.filter(x=>x!==o))} className="hover:text-indigo-900">×</button></span>
-          ))}
-          {directoryPath.length>0 && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">Dir: /{directoryPath.join('/')}<button onClick={()=>setDirectoryPath([])} className="hover:text-purple-900">×</button></span>}
-          {riskLevel !== 'all' && <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full ${riskLevel==='high'?'bg-red-100 text-red-700':riskLevel==='medium'?'bg-amber-100 text-amber-700':'bg-green-100 text-green-700'}`}>Risk: {riskLevel}<button onClick={()=>setRiskLevel('all')} className="hover:opacity-80">×</button></span>}
-          {Number(minOwnership) > 0 && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">Own ≥ {minOwnership}%<button onClick={()=>setMinOwnership(0)} className="hover:text-blue-900">×</button></span>}
-          {maxAuthors && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-teal-100 text-teal-700">≤ {maxAuthors} authors<button onClick={()=>setMaxAuthors('')} className="hover:text-teal-900">×</button></span>}
-          {selectedFileTypes.map(t => (
-            <span key={t} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-pink-100 text-pink-700">{t}<button onClick={()=>setSelectedFileTypes(prev=>prev.filter(x=>x!==t))} className="hover:text-pink-900">×</button></span>
-          ))}
-          {timeRange && timeRange !== 'custom' && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">{timeRange==='3m'?'3 mo':timeRange==='6m'?'6 mo':'1 yr'}<button onClick={()=>setTimeRange('3m')} className="hover:text-gray-900" title="Reset to 3m">↺</button></span>}
-          {timeRange === 'custom' && (customStart || customEnd) && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-200 text-gray-700">{customStart || '…'} → {customEnd || '…'}<button onClick={()=>{setCustomStart(''); setCustomEnd(''); setTimeRange('3m');}} className="hover:text-gray-900" title="Clear custom">×</button></span>}
-        </div>
-      </div>
-      </div>
+        <ActiveFilterBadges
+          filters={[
+            ...selectedOwners.map(owner => ({
+              label: owner,
+              onRemove: () => setSelectedOwners(prev => prev.filter(o => o !== owner)),
+              color: 'blue'
+            })),
+            ...selectedFileTypes.map(type => ({
+              label: type,
+              onRemove: () => setSelectedFileTypes(prev => prev.filter(t => t !== type)),
+              color: 'green'
+            })),
+            ...(riskLevel !== 'all' ? [{
+              label: `Risk: ${riskLevel}`,
+              onRemove: () => setRiskLevel('all'),
+              color: 'red'
+            }] : []),
+            ...(Number(minOwnership) > 0 ? [{
+              label: `Ownership ≥ ${minOwnership}%`,
+              onRemove: () => setMinOwnership(0),
+              color: 'purple'
+            }] : [])
+          ]}
+        />
+      </FilterContainer>
 
       {/* Ownership / Knowledge Table */}
   <div className="bg-white rounded-lg shadow">
@@ -745,29 +629,14 @@ const KnowledgeRiskView = ({ projectId, className = "" }) => {
         )}
         {/* Pagination Controls */}
         {totalItems > 0 && (
-          <div className="px-6 py-3 border-t border-gray-200 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between text-xs">
-            <div className="text-gray-600">Page {safeCurrentPage} of {totalPages}</div>
-            <div className="flex items-center gap-1 flex-wrap">
-              <button onClick={()=>goToPage(1)} disabled={safeCurrentPage===1} className={`px-2 py-1 rounded border text-[11px] ${safeCurrentPage===1?'bg-gray-100 text-gray-400 border-gray-200':'bg-white hover:bg-gray-50 text-gray-700 border-gray-300'}`}>First</button>
-              <button onClick={()=>goToPage(safeCurrentPage-1)} disabled={safeCurrentPage===1} className={`px-2 py-1 rounded border text-[11px] ${safeCurrentPage===1?'bg-gray-100 text-gray-400 border-gray-200':'bg-white hover:bg-gray-50 text-gray-700 border-gray-300'}`}>Prev</button>
-              {pageNumbers.map((p,i,arr) => {
-                const prev = arr[i-1];
-                const showEllipsis = i>0 && p - prev > 1;
-                return (
-                  <React.Fragment key={p}>
-                    {showEllipsis && <span className="px-1 text-gray-400">…</span>}
-                    <button
-                      onClick={()=>goToPage(p)}
-                      className={`px-2 py-1 rounded border text-[11px] ${p===safeCurrentPage?'bg-blue-600 text-white border-blue-600':'bg-white hover:bg-gray-50 text-gray-700 border-gray-300'}`}
-                    >{p}</button>
-                  </React.Fragment>
-                );
-              })}
-              <button onClick={()=>goToPage(safeCurrentPage+1)} disabled={safeCurrentPage===totalPages} className={`px-2 py-1 rounded border text-[11px] ${safeCurrentPage===totalPages?'bg-gray-100 text-gray-400 border-gray-200':'bg-white hover:bg-gray-50 text-gray-700 border-gray-300'}`}>Next</button>
-              <button onClick={()=>goToPage(totalPages)} disabled={safeCurrentPage===totalPages} className={`px-2 py-1 rounded border text-[11px] ${safeCurrentPage===totalPages?'bg-gray-100 text-gray-400 border-gray-200':'bg-white hover:bg-gray-50 text-gray-700 border-gray-300'}`}>Last</button>
-            </div>
-            <div className="text-gray-500">Rows {startIndex + 1}-{endIndex} of {totalItems}</div>
-          </div>
+          <UnifiedPagination
+            currentPage={safeCurrentPage}
+            pageSize={pageSize}
+            totalItems={totalItems}
+            onPageChange={(p) => goToPage(p)}
+            onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
+            compact
+          />
         )}
       </div>
 
@@ -861,7 +730,8 @@ const KnowledgeRiskView = ({ projectId, className = "" }) => {
           </div>
         </div>
       </div>
-  </div>
+    </div>
+    </div>
   );
 };
 
@@ -891,60 +761,6 @@ const Th = ({ label, sortKey, sortConfig, onSort, className = '' }) => {
         {dir && <span className="text-[10px] text-blue-600" aria-hidden>{dir}</span>}
       </div>
     </th>
-  );
-};
-
-// Advanced Filters collapsible section
-const AdvancedFilters = ({ minOwnership, setMinOwnership, maxAuthors, setMaxAuthors }) => {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="mt-4 border-t border-gray-200 pt-3">
-      <button
-        type="button"
-        onClick={()=>setOpen(o=>!o)}
-        className="flex items-center gap-2 text-xs font-medium text-gray-700 hover:text-gray-900 focus:outline-none"
-      >
-        {open ? <ChevronDownIcon className="h-4 w-4" /> : <ChevronRightIcon className="h-4 w-4" />}
-        Advanced Filters
-        { (Number(minOwnership)>0 || maxAuthors) && <span className="ml-1 inline-flex items-center px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[10px]">Active</span>}
-      </button>
-      {open && (
-  <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-5">
-          <div>
-            <label className="flex items-center text-[11px] font-medium text-gray-600 mb-1 gap-1">Ownership ≥ %</label>
-            <div className="flex items-center gap-3">
-              <input
-                type="range"
-                min={0}
-                max={100}
-                value={minOwnership}
-                onChange={e=>setMinOwnership(e.target.value)}
-                className="flex-1 h-2 rounded-lg appearance-none cursor-pointer bg-gray-200"
-              />
-              <input
-                type="number"
-                min={0}
-                max={100}
-                value={minOwnership}
-                onChange={e=>setMinOwnership(e.target.value)}
-                className="w-16 h-9 px-2 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-          </div>
-          <div>
-            <label className="flex items-center text-[11px] font-medium text-gray-600 mb-1 gap-1">Max Authors</label>
-            <input
-              type="number"
-              min={1}
-              value={maxAuthors}
-              onChange={e=>setMaxAuthors(e.target.value)}
-              placeholder="e.g. 5"
-              className="w-full h-10 px-3 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-        </div>
-      )}
-    </div>
   );
 };
 

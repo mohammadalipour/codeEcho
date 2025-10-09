@@ -2,7 +2,17 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApi } from '../services/ApiContext';
 import HotspotTreemapComponent from '../components/HotspotTreemap';
-import HotspotFilters from '../components/HotspotFilters';
+import { 
+  FilterContainer, 
+  FilterSection, 
+  TimeRangeFilter, 
+  SelectFilter, 
+  RangeFilter, 
+  MultiSelectFilter, 
+  ActiveFilterBadges,
+  SearchFilter
+} from '../components/UnifiedFilters';
+import UnifiedPagination from '../components/UnifiedPagination';
 
 // Clean refactored HotspotTreemap page with time range filtering
 const HotspotTreemap = () => {
@@ -325,24 +335,24 @@ const HotspotTreemap = () => {
 
       {/* Header (back button removed; tabs handle navigation) */}
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-gray-900">
-          {project ? `${project.name} - Hotspots` : 'Project Hotspot Analysis'}
+                <h1 className="text-xl font-semibold text-gray-900">
+          Hotspot Treemap - {project?.name || `Project ${projectId}`}
         </h1>
-        <p className="mt-1 text-sm text-gray-500 max-w-3xl">
+        <p className="mt-2 text-sm text-gray-600 max-w-3xl">
           Visualize change frequency and risk across the codebase. Use filters to focus on time windows, repositories, or directories.
         </p>
         {error && (
-          <div className="mt-4 bg-red-50 border border-red-200 rounded-md p-4 text-sm text-red-800">
+          <div className="mt-4 bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm text-gray-700">
             {error}
           </div>
         )}
         {!error && !hasRealData && (
-          <div className="mt-4 bg-blue-50 border border-blue-200 rounded-md p-4 text-sm text-blue-800">
+          <div className="mt-4 bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm text-gray-700">
             No hotspot data for the selected time range. Showing minimal placeholder structure.
           </div>
         )}
         {!error && hasRealData && !hasFilteredData && debouncedPath && (
-          <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-md p-4 text-sm text-yellow-800">
+          <div className="mt-4 bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm text-gray-700">
             No hotspots found under directory: <span className="font-medium">{debouncedPath}</span>
           </div>
         )}
@@ -352,36 +362,200 @@ const HotspotTreemap = () => {
       <div className="space-y-8">
         {/* Row 1: Filters */}
         <section>
-          <HotspotFilters
-            timeRange={timeRange}
-            startDate={startDate}
-            endDate={endDate}
-            onTimeRangeChange={handleTimeRangeChange}
-            onCustomDateChange={handleCustomDateChange}
-            repositories={repositories}
-            repository={repository}
-            onRepositoryChange={setRepository}
-            directories={directories}
-            directory={pathFilter}
-            onDirectoryChange={setPathFilter}
-            directoryCounts={directoryCounts}
-            complexityMetric={complexityMetric}
-            onComplexityMetricChange={setComplexityMetric}
-            minComplexity={minComplexity}
-            onMinComplexityChange={setMinComplexity}
-            availableFileTypes={availableFileTypes}
-            fileTypeCounts={fileTypeCounts}
-            selectedFileTypes={selectedFileTypes}
-            onSelectedFileTypesChange={setSelectedFileTypes}
-            minChanges={minChanges}
-            onMinChangesChange={setMinChanges}
-            riskLevel={riskLevel}
-            onRiskLevelChange={setRiskLevel}
-            totalHotspotCount={totalHotspotCount}
-            filteredHotspotCount={filteredHotspotCount}
-            onReset={() => { setTimeRange('all'); setStartDate(''); setEndDate(''); setRepository('all'); setPathFilter(''); setComplexityMetric('cyclomatic'); setMinComplexity(10); setMinChanges(0); setSelectedFileTypes([]); }}
+          <FilterContainer
             loading={loading}
-          />
+            onReset={() => { 
+              setTimeRange('all'); 
+              setStartDate(''); 
+              setEndDate(''); 
+              setRepository('all'); 
+              setPathFilter(''); 
+              setComplexityMetric('cyclomatic'); 
+              setMinComplexity(10); 
+              setMinChanges(0); 
+              setSelectedFileTypes([]); 
+              setRiskLevel('all');
+            }}
+            activeFiltersCount={[
+              timeRange !== 'all',
+              repository !== 'all',
+              !!pathFilter,
+              complexityMetric !== 'cyclomatic' || minComplexity !== 10,
+              minChanges > 0,
+              selectedFileTypes.length > 0,
+              riskLevel !== 'all'
+            ].filter(Boolean).length}
+            resultCount={filteredHotspotCount}
+            totalCount={totalHotspotCount}
+          >
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Time Range Filter */}
+              <FilterSection title="Time Range" defaultOpen={true}>
+                <TimeRangeFilter
+                  value={timeRange}
+                  onChange={handleTimeRangeChange}
+                  startDate={startDate}
+                  endDate={endDate}
+                  onDateChange={handleCustomDateChange}
+                />
+              </FilterSection>
+
+              {/* Repository Filter */}
+              <FilterSection title="Repository" defaultOpen={true}>
+                <SelectFilter
+                  label="Select Repository"
+                  value={repository}
+                  onChange={setRepository}
+                  options={repositories.map(r => ({
+                    value: r.name || r.slug || r.repository || r,
+                    label: r.name || r.slug || r.repository || r
+                  }))}
+                  placeholder="All Repositories"
+                />
+              </FilterSection>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Complexity Filter */}
+              <FilterSection title="Complexity" defaultOpen={false}>
+                <div className="space-y-4">
+                  <SelectFilter
+                    label="Metric Type"
+                    value={complexityMetric}
+                    onChange={setComplexityMetric}
+                    options={[
+                      { value: 'cyclomatic', label: 'Cyclomatic' },
+                      { value: 'cognitive', label: 'Cognitive' },
+                      { value: 'loc', label: 'Lines of Code' }
+                    ]}
+                  />
+                  <RangeFilter
+                    label="Minimum Complexity"
+                    value={minComplexity}
+                    onChange={setMinComplexity}
+                    min={0}
+                    max={50}
+                    step={1}
+                    description={`Filter files with ${complexityMetric} complexity ≥ ${minComplexity}`}
+                  />
+                </div>
+              </FilterSection>
+
+              {/* Change Frequency Filter */}
+              <FilterSection title="Change Frequency" defaultOpen={false}>
+                <RangeFilter
+                  label="Minimum Changes"
+                  value={minChanges}
+                  onChange={setMinChanges}
+                  min={0}
+                  max={50}
+                  step={1}
+                  description={`Show files changed at least ${minChanges} times`}
+                />
+              </FilterSection>
+
+              {/* Risk Level Filter */}
+              <FilterSection title="Risk Level" defaultOpen={false}>
+                <SelectFilter
+                  label="Risk Level"
+                  value={riskLevel}
+                  onChange={setRiskLevel}
+                  options={[
+                    { value: 'all', label: 'All Levels' },
+                    { value: 'High', label: 'High Risk' },
+                    { value: 'Medium', label: 'Medium Risk' },
+                    { value: 'Low', label: 'Low Risk' }
+                  ]}
+                />
+              </FilterSection>
+            </div>
+
+            {/* File Types and Directory - Full Width */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <FilterSection title="File Types" defaultOpen={false} badge={selectedFileTypes.length > 0 ? `${selectedFileTypes.length} selected` : null}>
+                <MultiSelectFilter
+                  label="Filter by file extensions"
+                  options={availableFileTypes}
+                  selected={selectedFileTypes}
+                  onChange={setSelectedFileTypes}
+                  searchable={true}
+                  counts={fileTypeCounts}
+                />
+              </FilterSection>
+
+              <FilterSection title="Directory" defaultOpen={false}>
+                <div className="space-y-3">
+                  <SearchFilter
+                    value={pathFilter}
+                    onChange={setPathFilter}
+                    placeholder="Search directories..."
+                    label="Directory Path"
+                  />
+                  {directories.length > 0 && (
+                    <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg bg-gray-50">
+                      <button
+                        type="button"
+                        onClick={() => setPathFilter('')}
+                        className={`w-full text-left px-3 py-2 text-sm hover:bg-white transition-colors border-b border-gray-200 ${
+                          pathFilter === '' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span>All Directories</span>
+                          <span className="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded-full">
+                            {directories.length}
+                          </span>
+                        </div>
+                      </button>
+                      {directories.map(dir => (
+                        <button
+                          key={dir}
+                          type="button"
+                          onClick={() => setPathFilter(dir)}
+                          className={`w-full text-left px-3 py-2 text-sm hover:bg-white transition-colors border-b border-gray-200 last:border-b-0 ${
+                            pathFilter === dir ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="truncate">{dir}</span>
+                            <span className="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded-full">
+                              {directoryCounts[dir] || 0}
+                            </span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </FilterSection>
+            </div>
+
+            {/* Active Filter Badges */}
+            <div className="pt-4 border-t border-gray-100">
+              <ActiveFilterBadges
+                filters={[
+                  timeRange !== 'all' && { key: 'timeRange', label: `Time: ${timeRange}`, color: 'bg-blue-100 text-blue-800 border border-blue-200' },
+                  repository !== 'all' && { key: 'repository', label: `Repo: ${repository}`, color: 'bg-green-100 text-green-800 border border-green-200' },
+                  pathFilter && { key: 'directory', label: `Dir: ${pathFilter}`, color: 'bg-purple-100 text-purple-800 border border-purple-200' },
+                  (complexityMetric !== 'cyclomatic' || minComplexity !== 10) && { key: 'complexity', label: `${complexityMetric} ≥ ${minComplexity}`, color: 'bg-orange-100 text-orange-800 border border-orange-200' },
+                  minChanges > 0 && { key: 'changes', label: `Changes ≥ ${minChanges}`, color: 'bg-amber-100 text-amber-800 border border-amber-200' },
+                  selectedFileTypes.length > 0 && { key: 'fileTypes', label: `Types: ${selectedFileTypes.slice(0,3).join(', ')}${selectedFileTypes.length > 3 ? ` +${selectedFileTypes.length-3}` : ''}`, color: 'bg-indigo-100 text-indigo-800 border border-indigo-200' },
+                  riskLevel !== 'all' && { key: 'risk', label: `Risk: ${riskLevel}`, color: riskLevel === 'High' ? 'bg-red-100 text-red-800 border border-red-200' : riskLevel === 'Medium' ? 'bg-yellow-100 text-yellow-800 border border-yellow-200' : 'bg-gray-100 text-gray-800 border border-gray-200' }
+                ].filter(Boolean)}
+                onRemove={(key) => {
+                  switch(key) {
+                    case 'timeRange': setTimeRange('all'); setStartDate(''); setEndDate(''); break;
+                    case 'repository': setRepository('all'); break;
+                    case 'directory': setPathFilter(''); break;
+                    case 'complexity': setComplexityMetric('cyclomatic'); setMinComplexity(10); break;
+                    case 'changes': setMinChanges(0); break;
+                    case 'fileTypes': setSelectedFileTypes([]); break;
+                    case 'risk': setRiskLevel('all'); break;
+                  }
+                }}
+              />
+            </div>
+          </FilterContainer>
         </section>
 
         {/* Row 2: Treemap & Interpretation */}
@@ -395,11 +569,11 @@ const HotspotTreemap = () => {
           </div>
           {/* Hotspots Table */}
           {filteredHotspots && filteredHotspots.length > 0 && (
-            <div className="bg-white border border-gray-200 rounded-lg p-4 mb-6 overflow-x-auto">
-              <div className="flex justify-between items-center mb-3">
-                <h3 className="text-sm font-medium text-gray-700">Hotspot Files ({totalHotspotCount})</h3>
-                <div className="flex items-center gap-2">
-                  <label className="text-xs text-gray-600">Items per page:</label>
+            <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 mb-6 overflow-x-auto">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Hotspot Files ({totalHotspotCount})</h3>
+                <div className="flex items-center gap-3">
+                  <label className="text-sm text-gray-700 font-medium">Items per page:</label>
                   <select 
                     value={pageSize} 
                     onChange={(e) => {
@@ -407,7 +581,7 @@ const HotspotTreemap = () => {
                       setPageSize(Number(e.target.value));
                       setCurrentPage(1); // Reset to first page when changing page size
                     }}
-                    className="text-xs border border-gray-300 rounded px-2 py-1"
+                    className="text-sm border border-gray-300 rounded-md px-3 py-1.5 bg-white focus:ring-2 focus:ring-gray-500 focus:border-gray-500"
                   >
                     <option value={10}>10</option>
                     <option value={20}>20</option>
@@ -428,15 +602,15 @@ const HotspotTreemap = () => {
                 <tbody className="divide-y divide-gray-100">
                   {filteredHotspots.slice(0,150).map((h,i) => {
                     const risk = h.risk_level || 'Unknown';
-                    const riskClass = risk === 'High' ? 'bg-red-100 text-red-700 border-red-200' : risk === 'Medium' ? 'bg-amber-100 text-amber-700 border-amber-200' : risk === 'Low' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-gray-100 text-gray-600 border-gray-200';
+                    const riskClass = risk === 'High' ? 'text-red-700' : risk === 'Medium' ? 'text-yellow-700' : risk === 'Low' ? 'text-green-700' : 'text-gray-600';
                     return (
-                      <tr key={i} className="hover:bg-gray-50">
-                        <td className="px-3 py-2 whitespace-nowrap max-w-xs truncate font-mono text-[11px] text-gray-800" title={h.file_path}>{h.file_path}</td>
-                        <td className="px-3 py-2">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-[10px] font-medium ${riskClass}`}>{risk}</span>
+                      <tr key={i} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-3 py-3 whitespace-nowrap max-w-xs truncate font-mono text-xs text-gray-900" title={h.file_path}>{h.file_path}</td>
+                        <td className="px-3 py-3">
+                          <span className={`font-medium text-xs ${riskClass}`}>{risk}</span>
                         </td>
-                        <td className="px-3 py-2 text-gray-700">{h.change_count || h.total_changes || 0}</td>
-                        <td className="px-3 py-2 text-gray-700">{h.complexity || h.cyclomatic_complexity || '-'}</td>
+                        <td className="px-3 py-3 text-gray-700 font-medium">{h.change_count || h.total_changes || 0}</td>
+                        <td className="px-3 py-3 text-gray-600">{h.complexity || h.cyclomatic_complexity || '-'}</td>
                       </tr>
                     );
                   })}
@@ -448,49 +622,14 @@ const HotspotTreemap = () => {
               
               {/* Pagination Controls */}
               {pagination && pagination.total_pages > 1 && (
-                <div className="mt-4 flex items-center justify-between border-t pt-4">
-                  <div className="text-sm text-gray-600">
-                    Showing page {pagination.page} of {pagination.total_pages} ({pagination.total} total hotspots)
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                      disabled={currentPage <= 1}
-                      className="px-3 py-1 text-sm border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-                    >
-                      Previous
-                    </button>
-                    
-                    {/* Page numbers */}
-                    {Array.from({ length: Math.min(5, pagination.total_pages) }, (_, i) => {
-                      const page = Math.max(1, Math.min(pagination.total_pages - 4, currentPage - 2)) + i;
-                      if (page > pagination.total_pages) return null;
-                      return (
-                        <button
-                          key={page}
-                          onClick={() => {
-                            console.log('Clicking page:', page, 'current:', currentPage);
-                            setCurrentPage(page);
-                          }}
-                          className={`px-3 py-1 text-sm border rounded ${
-                            currentPage === page 
-                              ? 'bg-blue-500 text-white border-blue-500' 
-                              : 'hover:bg-gray-50'
-                          }`}
-                        >
-                          {page}
-                        </button>
-                      );
-                    })}
-                    
-                    <button
-                      onClick={() => setCurrentPage(Math.min(pagination.total_pages, currentPage + 1))}
-                      disabled={currentPage >= pagination.total_pages}
-                      className="px-3 py-1 text-sm border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-                    >
-                      Next
-                    </button>
-                  </div>
+                <div className="mt-4 border-t">
+                  <UnifiedPagination
+                    currentPage={currentPage}
+                    pageSize={pageSize}
+                    totalItems={pagination.total || filteredHotspots.length}
+                    onPageChange={(p) => setCurrentPage(Math.max(1, Math.min(p, pagination.total_pages)))}
+                    onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
+                  />
                 </div>
               )}
             </div>

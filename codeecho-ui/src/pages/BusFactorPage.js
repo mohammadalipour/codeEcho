@@ -5,6 +5,18 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import {
   ChevronDownIcon,
 } from '@heroicons/react/24/outline';
+import { 
+  FilterContainer, 
+  FilterSection, 
+  SelectFilter, 
+  RangeFilter, 
+  MultiSelectFilter, 
+  ActiveFilterBadges,
+  SearchFilter,
+  QuickFilterButtons,
+  TimeRangeFilter
+} from '../components/UnifiedFilters';
+import UnifiedPagination from '../components/UnifiedPagination';
 
 // Time range summary helper component
 function TimeRangeSummary({ timeRange, customStart, customEnd }) {
@@ -42,7 +54,7 @@ const BusFactorPage = () => {
   const [error, setError] = useState(null);
 
   // Filters (similar to Knowledge Risk)
-  const [timeRange, setTimeRange] = useState('all'); // all | 3m | 6m | 1y | custom
+  const [timeRange, setTimeRange] = useState('all'); // all | 3months | 6months | 1year | custom (also supports legacy 3m/6m/1y)
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
   const [directoryPath, setDirectoryPath] = useState([]); // array of segments representing current directory selection
@@ -81,15 +93,15 @@ const BusFactorPage = () => {
     if (timeRange === 'all') {
       // No date filtering
       return { startDate: null, endDate: null };
-    } else if (timeRange === '3m') {
+    } else if (timeRange === '3m' || timeRange === '3months') {
       const d = new Date(now);
       d.setMonth(d.getMonth() - 3);
       startDate = d.toISOString().split('T')[0];
-    } else if (timeRange === '6m') {
+    } else if (timeRange === '6m' || timeRange === '6months') {
       const d = new Date(now);
       d.setMonth(d.getMonth() - 6);
       startDate = d.toISOString().split('T')[0];
-    } else if (timeRange === '1y') {
+    } else if (timeRange === '1y' || timeRange === '1year') {
       const d = new Date(now);
       d.setFullYear(d.getFullYear() - 1);
       startDate = d.toISOString().split('T')[0];
@@ -217,28 +229,28 @@ const BusFactorPage = () => {
   const getRiskStyling = (riskLevel) => {
     switch (riskLevel) {
       case 'high':
-        return 'bg-red-50 border-l-4 border-red-500';
+        return 'bg-white border-l-4 border-red-500';
       case 'medium':
-        return 'bg-orange-50 border-l-4 border-orange-500';
+        return 'bg-white border-l-4 border-yellow-500';
       case 'low':
-        return 'bg-green-50 border-l-4 border-green-500';
+        return 'bg-white border-l-4 border-green-500';
       default:
-        return 'bg-white';
+        return 'bg-white border border-gray-200';
     }
   };
 
   // Get risk badge styling
   const getRiskBadge = (riskLevel, busFactor) => {
-    const baseClasses = 'px-2 py-1 rounded-full text-xs font-medium';
+    const baseClasses = 'px-2 py-1 rounded text-xs font-medium';
     switch (riskLevel) {
       case 'high':
-        return `${baseClasses} bg-red-100 text-red-700`;
+        return `${baseClasses} text-red-700`;
       case 'medium':
-        return `${baseClasses} bg-orange-100 text-orange-700`;
+        return `${baseClasses} text-yellow-700`;
       case 'low':
-        return `${baseClasses} bg-green-100 text-green-700`;
+        return `${baseClasses} text-green-700`;
       default:
-        return `${baseClasses} bg-gray-100 text-gray-700`;
+        return `${baseClasses} text-gray-700`;
     }
   };
 
@@ -294,9 +306,9 @@ const BusFactorPage = () => {
   if (error) {
     return (
       <div className="p-6">
-        <div className="bg-red-50 border border-red-200 rounded-md p-4">
-          <h3 className="text-sm font-medium text-red-800">Error</h3>
-          <p className="text-sm text-red-700 mt-1">{error}</p>
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
+          <h3 className="text-lg font-semibold text-gray-900">Error</h3>
+          <p className="text-sm text-gray-700 mt-2">{error}</p>
         </div>
       </div>
     );
@@ -306,7 +318,7 @@ const BusFactorPage = () => {
     <div className="p-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-gray-900 mb-2">Bus Factor Analysis</h1>
+        <h1 className="text-xl font-semibold text-gray-900 mb-2">Bus Factor Analysis</h1>
         <p className="text-sm text-gray-600 max-w-3xl">
           Measures project resilience to developer turnover. Bus Factor indicates the minimum number of developers 
           that must leave before critical knowledge is lost. Lower values indicate higher risk.
@@ -316,144 +328,144 @@ const BusFactorPage = () => {
       {/* Summary Cards */}
       {busFactorData?.summary && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white p-4 rounded-lg border border-gray-200">
+          <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
             <div className="text-sm font-medium text-gray-500">Total Files</div>
             <div className="text-2xl font-semibold text-gray-900">{busFactorData.summary.total_files}</div>
           </div>
-          <div className="bg-red-50 p-4 rounded-lg border border-red-200">
-            <div className="text-sm font-medium text-red-600">High Risk</div>
-            <div className="text-2xl font-semibold text-red-700">{busFactorData.summary.high_risk_files}</div>
+          <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+            <div className="text-sm font-medium text-gray-500">High Risk</div>
+            <div className="text-2xl font-semibold text-red-600">{busFactorData.summary.high_risk_files}</div>
           </div>
-          <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
-            <div className="text-sm font-medium text-orange-600">Medium Risk</div>
-            <div className="text-2xl font-semibold text-orange-700">{busFactorData.summary.medium_risk_files}</div>
+          <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+            <div className="text-sm font-medium text-gray-500">Medium Risk</div>
+            <div className="text-2xl font-semibold text-yellow-600">{busFactorData.summary.medium_risk_files}</div>
           </div>
-          <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-            <div className="text-sm font-medium text-green-600">Low Risk</div>
-            <div className="text-2xl font-semibold text-green-700">{busFactorData.summary.low_risk_files}</div>
+          <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+            <div className="text-sm font-medium text-gray-500">Low Risk</div>
+            <div className="text-2xl font-semibold text-green-600">{busFactorData.summary.low_risk_files}</div>
           </div>
         </div>
       )}
 
-      {/* Filter Panel (Knowledge Risk Style) */}
-      <div className="bg-white rounded-lg shadow px-6 pt-4 pb-3 mb-6">
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-          <div className="flex items-center gap-2 text-gray-700 font-medium">
-            <span className="flex items-center gap-1">Filters {activeFilterCount>0 && <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-blue-100 text-blue-700">{activeFilterCount}</span>}</span>
-            <span className="text-xs text-gray-400 font-normal">Showing {processedData.length} of {busFactorData?.summary?.total_files || 0}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <button onClick={resetFilters} className="text-xs px-3 py-1.5 rounded-md border border-gray-300 bg-gray-50 hover:bg-gray-100">Reset</button>
-          </div>
-        </div>
-
-        {/* Basic Filters - Two Column Layout */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      <FilterContainer
+        loading={loading}
+        onReset={resetFilters}
+        activeFiltersCount={activeFilterCount}
+        resultCount={processedData.length}
+        totalCount={busFactorData?.summary?.total_files || 0}
+      >
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Directory Filter */}
-          <div className="relative">
-            <label className="flex items-center text-[11px] font-medium text-gray-600 mb-1 gap-1">Directory</label>
-            <button type="button" onClick={()=>setDirMenuOpen(o=>!o)} className="w-full h-10 px-3 text-left border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center justify-between hover:border-gray-400">
-              <span className="truncate">{directoryPath.length ? '/' + directoryPath.join('/') : 'All Directories'}</span>
-              <ChevronDownIcon className={`h-4 w-4 transition ${dirMenuOpen ? 'rotate-180': ''}`} />
-            </button>
-            {dirMenuOpen && (
-              <div ref={dirMenuRef} className="absolute z-30 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg p-2 text-xs max-h-80 overflow-auto">
-                <div className="flex items-center justify-between mb-2 gap-2">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-1 text-[10px] text-blue-700">
-                      <button type="button" onClick={()=>setDirectoryPath([])} className="hover:underline">root</button>
-                      {directoryPath.map((seg, idx) => (
-                        <React.Fragment key={idx}>
-                          <span className="text-gray-400">/</span>
-                          <button type="button" onClick={()=>setDirectoryPath(directoryPath.slice(0, idx+1))} className="hover:underline truncate max-w-[80px]">{seg}</button>
-                        </React.Fragment>
-                      ))}
-                    </div>
-                  </div>
-                  {directoryPath.length>0 && <button className="text-[10px] text-blue-600 whitespace-nowrap" onClick={()=>setDirectoryPath(p=>p.slice(0,-1))}>Up</button>}
-                </div>
-                {directoryChildren.map(d => (
+          <FilterSection title="Directory" defaultOpen={true}>
+            <div className="space-y-3">
+              {directoryChildren.length > 0 && (
+                <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg bg-gray-50">
                   <button
-                    key={d.name}
                     type="button"
-                    onClick={()=>setDirectoryPath(p=>[...p, d.name])}
-                    className="w-full flex items-center justify-between px-2 py-1 rounded hover:bg-gray-50 text-left"
+                    onClick={() => setDirectoryPath([])}
+                    className={`w-full text-left px-3 py-2 text-sm hover:bg-white transition-colors border-b border-gray-200 ${
+                      directoryPath.length === 0 ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'
+                    }`}
                   >
-                    <span className="truncate">{d.name}</span>
-                    <span className="text-[10px] text-gray-400">{d.count}</span>
+                    <div className="flex items-center justify-between">
+                      <span>All Directories</span>
+                      <span className="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded-full">
+                        {directoryChildren.length}
+                      </span>
+                    </div>
                   </button>
-                ))}
-                {directoryChildren.length===0 && <div className="text-gray-400 px-2 py-1">No subfolders</div>}
-                <div className="mt-2 pt-2 border-t border-gray-100 flex justify-between">
-                  <button onClick={()=>setDirectoryPath([])} className="text-[10px] text-blue-600 hover:underline">Clear</button>
-                  <button onClick={()=>setDirMenuOpen(false)} className="text-[10px] text-blue-600 hover:underline">Close</button>
+                  {directoryChildren.map(dir => (
+                    <button
+                      key={dir.name}
+                      type="button"
+                      onClick={() => setDirectoryPath(prev => [...prev, dir.name])}
+                      className={`w-full text-left px-3 py-2 text-sm hover:bg-white transition-colors border-b border-gray-200 last:border-b-0 ${
+                        directoryPath.join('/').endsWith(dir.name) ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="truncate">{dir.name}</span>
+                        <span className="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded-full">
+                          {dir.count}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
                 </div>
-              </div>
-            )}
-          </div>
-
-          {/* Time Range (Knowledge Risk Style) */}
-          <div className="relative flex flex-col">
-            <label className="flex items-center text-[11px] font-medium text-gray-600 mb-1 gap-1">Time Range</label>
-            <div className="flex flex-wrap gap-1.5 mb-1">
-              {[
-                {key:'all', label:'All'},
-                {key:'3m', label:'3M'},
-                {key:'6m', label:'6M'},
-                {key:'1y', label:'1Y'},
-                {key:'custom', label:'Custom'}
-              ].map(r => (
-                <button
-                  key={r.key}
-                  type="button"
-                  onClick={()=>onChangeTimeRange(r.key)}
-                  className={`px-2.5 py-1 text-[11px] rounded-md border transition ${timeRange===r.key ? 'bg-blue-600 text-white border-blue-600 shadow-sm':'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
-                >{r.label}</button>
-              ))}
+              )}
             </div>
-            {timeRange === 'custom' && (
-              <div className="flex items-end gap-2">
-                <div className="flex-1">
-                  <label className="flex items-center text-[10px] font-medium text-gray-500 mb-0.5">Start</label>
-                  <input type="date" value={customStart} onChange={e=>setCustomStart(e.target.value)} className="w-full h-9 px-2 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-                <div className="flex-1">
-                  <label className="flex items-center text-[10px] font-medium text-gray-500 mb-0.5">End</label>
-                  <input type="date" value={customEnd} onChange={e=>setCustomEnd(e.target.value)} className="w-full h-9 px-2 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-              </div>
-            )}
-            <TimeRangeSummary timeRange={timeRange} customStart={customStart} customEnd={customEnd} />
-          </div>
+          </FilterSection>
+
+          {/* Time Range Filter */}
+          <FilterSection title="Time Range" defaultOpen={true}>
+            <TimeRangeFilter
+              value={timeRange}
+              onChange={onChangeTimeRange}
+              startDate={customStart}
+              endDate={customEnd}
+              onDateChange={(which, value) => which === 'start' ? setCustomStart(value) : setCustomEnd(value)}
+            />
+          </FilterSection>
         </div>
 
-        {/* Quick Risk Badges */}
-        <div className="mt-3 flex flex-wrap items-center gap-4 text-[11px]">
-          <div className="flex items-center gap-3 select-none">
-            <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-full bg-red-500" />High</span>
-            <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-full bg-amber-500" />Medium</span>
-            <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-full bg-green-500" />Low</span>
-          </div>
-          <div className="flex items-center gap-1">
-            {['high','medium','low'].map(r => (
-              <button
-                key={r}
-                type="button"
-                onClick={() => setRiskLevel(prev => prev === r ? 'all' : r)}
-                className={`px-2 py-1 rounded-md border transition ${riskLevel===r ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
-              >{r.charAt(0).toUpperCase()+r.slice(1)}</button>
-            ))}
-          </div>
+        <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
+          {/* Risk Level Filter */}
+          <FilterSection title="Risk Level" defaultOpen={false}>
+            <QuickFilterButtons
+              options={[
+                { value: 'all', label: 'All Levels' },
+                { value: 'high', label: 'High Risk' },
+                { value: 'medium', label: 'Medium Risk' },
+                { value: 'low', label: 'Low Risk' }
+              ]}
+              value={riskLevel}
+              onChange={setRiskLevel}
+            />
+          </FilterSection>
         </div>
 
         {/* Active Filter Badges */}
-        <div className="flex flex-wrap gap-2 mt-3 text-[11px]">
-          {directoryPath.length>0 && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">Dir: /{directoryPath.join('/')}<button onClick={()=>setDirectoryPath([])} className="hover:text-purple-900">×</button></span>}
-          {riskLevel !== 'all' && <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full ${riskLevel==='high'?'bg-red-100 text-red-700':riskLevel==='medium'?'bg-amber-100 text-amber-700':'bg-green-100 text-green-700'}`}>Risk: {riskLevel}<button onClick={()=>setRiskLevel('all')} className="hover:opacity-80">×</button></span>}
-          {timeRange && timeRange !== 'all' && timeRange !== 'custom' && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">{timeRange==='3m'?'3 mo':timeRange==='6m'?'6 mo':'1 yr'}<button onClick={()=>setTimeRange('all')} className="hover:text-gray-900" title="Reset to all">↺</button></span>}
-          {timeRange === 'custom' && (customStart || customEnd) && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-200 text-gray-700">{customStart || '…'} → {customEnd || '…'}<button onClick={()=>{setCustomStart(''); setCustomEnd(''); setTimeRange('all');}} className="hover:text-gray-900" title="Clear custom">×</button></span>}
+        <div className="pt-4 border-t border-gray-100">
+          <ActiveFilterBadges
+            filters={[
+              directoryPath.length > 0 && { 
+                key: 'directory', 
+                label: `Dir: /${directoryPath.join('/')}`, 
+                color: 'bg-purple-100 text-purple-800 border border-purple-200' 
+              },
+              riskLevel !== 'all' && { 
+                key: 'risk', 
+                label: `Risk: ${riskLevel}`, 
+                color: riskLevel === 'high' 
+                  ? 'bg-red-100 text-red-800 border border-red-200' 
+                  : riskLevel === 'medium' 
+                    ? 'bg-amber-100 text-amber-800 border border-amber-200' 
+                    : 'bg-green-100 text-green-800 border border-green-200'
+              },
+              timeRange !== 'all' && { 
+                key: 'timeRange', 
+                label: timeRange === 'custom' 
+                  ? `${customStart || '…'} → ${customEnd || '…'}` 
+                  : (timeRange === '3m' || timeRange === '3months') ? '3 months' 
+                    : (timeRange === '6m' || timeRange === '6months') ? '6 months' 
+                      : '1 year', 
+                color: 'bg-gray-100 text-gray-800 border border-gray-200' 
+              }
+            ].filter(Boolean)}
+            onRemove={(key) => {
+              if (key === 'directory') {
+                setDirectoryPath([]);
+              } else if (key === 'risk') {
+                setRiskLevel('all');
+              } else if (key === 'timeRange') {
+                setTimeRange('all');
+                setCustomStart('');
+                setCustomEnd('');
+              }
+            }}
+          />
         </div>
-      </div>
+      </FilterContainer>
 
       {/* Bus Factor Distribution Chart */}
       {chartData.length > 0 && (
@@ -588,30 +600,13 @@ const BusFactorPage = () => {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
-            <div className="text-sm text-gray-700">
-              Showing {(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, processedData.length)} of {processedData.length} files
-            </div>
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                className="px-3 py-1 text-sm border border-gray-300 rounded-md disabled:opacity-50 hover:bg-gray-100"
-              >
-                Previous
-              </button>
-              <span className="text-sm text-gray-700">
-                Page {currentPage} of {totalPages}
-              </span>
-              <button
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-                className="px-3 py-1 text-sm border border-gray-300 rounded-md disabled:opacity-50 hover:bg-gray-100"
-              >
-                Next
-              </button>
-            </div>
-          </div>
+          <UnifiedPagination
+            currentPage={currentPage}
+            pageSize={pageSize}
+            totalItems={processedData.length}
+            onPageChange={(p) => setCurrentPage(Math.max(1, Math.min(p, totalPages)))}
+            onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
+          />
         )}
       </div>
 

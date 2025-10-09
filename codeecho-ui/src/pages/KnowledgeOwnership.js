@@ -1,7 +1,18 @@
-import React, { useEffect, useMemo, useState, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useApi } from '../services/ApiContext';
-import { FunnelIcon, ArrowPathIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
+import { ArrowPathIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
+import { 
+  FilterContainer, 
+  FilterSection, 
+  SelectFilter, 
+  RangeFilter, 
+  MultiSelectFilter, 
+  ActiveFilterBadges,
+  SearchFilter,
+  QuickFilterButtons
+} from '../components/UnifiedFilters';
+import UnifiedPagination from '../components/UnifiedPagination';
 
 // CSS for sliders
 const sliderStyles = `
@@ -308,8 +319,13 @@ const KnowledgeOwnership = () => {
   };
 
   const riskBadge = (lvl) => {
-    const map = { high: 'bg-red-100 text-red-700 border-red-200', medium: 'bg-amber-100 text-amber-700 border-amber-200', low: 'bg-green-100 text-green-700 border-green-200', critical: 'bg-red-200 text-red-800 border-red-300' };
-    return map[lvl] || 'bg-gray-100 text-gray-600 border-gray-200';
+    const map = { 
+      high: 'text-red-700', 
+      medium: 'text-yellow-700', 
+      low: 'text-green-700', 
+      critical: 'text-red-800' 
+    };
+    return map[lvl] || 'text-gray-600';
   };
 
   return (
@@ -317,386 +333,199 @@ const KnowledgeOwnership = () => {
       <style>{sliderStyles}</style>
       <div className="px-4 sm:px-6 lg:px-8 py-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-gray-900">{project ? `${project.name} - Knowledge Ownership` : 'Knowledge Ownership'}</h1>
-        <p className="mt-1 text-sm text-gray-500 max-w-3xl">Analyze file ownership concentration and potential knowledge risk across the codebase.</p>
+        <h1 className="text-xl font-semibold text-gray-900">{project ? `${project.name} - Knowledge Ownership` : 'Knowledge Ownership'}</h1>
+        <p className="mt-2 text-sm text-gray-600 max-w-3xl">Analyze file ownership concentration and potential knowledge risk across the codebase.</p>
         {error && (
-          <div className="mt-4 bg-red-50 border border-red-200 rounded-md p-4 text-sm text-red-800">{error}</div>
+          <div className="mt-4 bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm text-gray-700">{error}</div>
         )}
       </div>
 
       {/* Filters */}
-      <div className="bg-white border border-gray-200 rounded-lg p-3 md:p-4 shadow-sm space-y-4 mb-8">
-        <div className="flex items-center justify-between">
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-2 text-gray-700 font-medium">
-              <FunnelIcon className="h-5 w-5 text-blue-600" />
-              <span>Filters</span>
-              {activeFilterCount > 0 && (
-                <span className="ml-1 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-100 text-blue-700">{activeFilterCount}</span>
-              )}
-            </div>
-            <div className="text-[11px] text-gray-500">Showing <span className="font-medium text-gray-700">{sorted.length}</span> of {records.length}</div>
-          </div>
-          <div className="flex gap-2">
-            <button type="button" onClick={resetFilters} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-gray-300 bg-white text-xs font-medium text-gray-700 hover:bg-gray-50">
-              <ArrowPathIcon className="h-4 w-4"/>Reset
-            </button>
-          </div>
+            {/* Filters */}
+      <FilterContainer
+        loading={loading}
+        onReset={resetFilters}
+        activeFiltersCount={activeFilterCount}
+        resultCount={sorted.length}
+      >
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Owner */}
+          <FilterSection title="Owner" defaultOpen={true}>
+            <SelectFilter
+              label="Select Owner"
+              value={selectedOwner}
+              onChange={setSelectedOwner}
+              options={uniqueOwners.map(o => ({ value: o, label: o }))}
+              placeholder="All Owners"
+            />
+          </FilterSection>
+
+          {/* Risk Level */}
+          <FilterSection title="Risk Level" defaultOpen={true}>
+            <QuickFilterButtons
+              options={[
+                { value: 'all', label: 'All Levels' },
+                { value: 'critical', label: 'Critical' },
+                { value: 'high', label: 'High' },
+                { value: 'medium', label: 'Medium' },
+                { value: 'low', label: 'Low' },
+              ]}
+              value={riskLevel}
+              onChange={setRiskLevel}
+            />
+          </FilterSection>
         </div>
-        
-        {/* Improved Filter Layout */}
-        <div className="space-y-6">
-          {/* Primary Filters Row - Most commonly used */}
-          <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-4 items-start">
-            {/* Owner Dropdown */}
-            <div className="relative space-y-2">
-              <label className="block text-sm font-medium text-gray-700 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
-                Owner
-              </label>
-              <button 
-                type="button" 
-                onClick={() => setOwnerMenuOpen(o => !o)} 
-                className="w-full h-10 px-3 text-left border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 flex items-center justify-between hover:border-gray-400 transition-colors"
-              >
-                <span className="truncate font-medium text-gray-900">{selectedOwner || 'All Owners'}</span>
-                <ChevronDownIcon className={`h-4 w-4 text-gray-400 transition-transform ${ownerMenuOpen ? 'rotate-180' : ''}`} />
-              </button>
-              {ownerMenuOpen && (
-                <div ref={ownerMenuRef} className="absolute z-30 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-auto">
-                  <div className="p-1">
-                    <button
-                      type="button"
-                      onClick={() => { setSelectedOwner(''); setOwnerMenuOpen(false); }}
-                      className={`w-full text-left px-3 py-2 text-sm rounded-md hover:bg-gray-50 transition-colors ${!selectedOwner ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'}`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span>All Owners</span>
-                        <span className="text-xs text-gray-500">({records.length})</span>
-                      </div>
-                    </button>
-                    {uniqueOwners.map(owner => (
-                      <button
-                        key={owner}
-                        type="button"
-                        onClick={() => { setSelectedOwner(owner); setOwnerMenuOpen(false); }}
-                        className={`w-full text-left px-3 py-2 text-sm rounded-md hover:bg-gray-50 transition-colors ${selectedOwner === owner ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'}`}
-                      >
-                        {owner}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
 
-            {/* Directory Path Dropdown */}
-            <div className="relative space-y-2">
-              <label className="block text-sm font-medium text-gray-700 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-purple-500"></span>
-                Directory
-              </label>
-              <button 
-                type="button" 
-                onClick={() => setDirMenuOpen(o => !o)} 
-                className="w-full h-10 px-3 text-left border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 flex items-center justify-between hover:border-gray-400 transition-colors"
-              >
-                <span className="truncate font-medium text-gray-900">{directoryPath.length ? '/' + directoryPath.join('/') : 'All Directories'}</span>
-                <ChevronDownIcon className={`h-4 w-4 text-gray-400 transition-transform ${dirMenuOpen ? 'rotate-180' : ''}`} />
-              </button>
-              {dirMenuOpen && (
-                <div ref={dirMenuRef} className="absolute z-30 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg p-3 max-h-80 overflow-auto">
-                  <div className="flex items-center justify-between mb-3 gap-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-1 text-xs text-blue-700">
-                        <button type="button" onClick={() => setDirectoryPath([])} className="hover:underline font-medium">root</button>
-                        {directoryPath.map((seg, idx) => (
-                          <React.Fragment key={idx}>
-                            <span className="text-gray-400">/</span>
-                            <button type="button" onClick={() => setDirectoryPath(directoryPath.slice(0, idx + 1))} className="hover:underline truncate max-w-[80px] font-medium">{seg}</button>
-                          </React.Fragment>
-                        ))}
-                      </div>
-                    </div>
-                    {directoryPath.length > 0 && <button className="text-xs text-blue-600 hover:text-blue-700 whitespace-nowrap font-medium" onClick={() => setDirectoryPath(p => p.slice(0, -1))}>↑ Up</button>}
-                  </div>
-                  <div className="space-y-1">
-                    {directoryChildren.map(d => (
-                      <button
-                        key={d.name}
-                        type="button"
-                        onClick={() => setDirectoryPath(p => [...p, d.name])}
-                        className="w-full flex items-center justify-between px-3 py-2 rounded-md hover:bg-gray-50 text-left text-sm transition-colors"
-                      >
-                        <span className="truncate font-medium text-gray-900">{d.name}</span>
-                        <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{d.count}</span>
-                      </button>
-                    ))}
-                    {directoryChildren.length === 0 && <div className="text-gray-500 px-3 py-2 text-sm italic">No subfolders</div>}
-                  </div>
-                  <div className="mt-3 pt-3 border-t border-gray-100 flex justify-between">
-                    <button onClick={() => setDirectoryPath([])} className="text-sm text-blue-600 hover:text-blue-700 font-medium">Clear</button>
-                    <button onClick={() => setDirMenuOpen(false)} className="text-sm text-gray-500 hover:text-gray-700">Close</button>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Risk Level */}
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-red-500"></span>
-                Risk Level
-              </label>
-              
-              {/* Risk indicators - compact version */}
-              <div className="flex items-center gap-2 text-[10px] text-gray-600 mb-2">
-                <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full bg-red-500" />Critical</span>
-                <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full bg-orange-500" />High</span>
-                <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full bg-amber-500" />Med</span>
-                <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full bg-green-500" />Low</span>
-              </div>
-              
-              {/* Toggle buttons - improved layout */}
-              <div className="grid grid-cols-2 gap-1">
-                {['critical', 'high', 'medium', 'low'].map(r => (
-                  <button
-                    key={r}
-                    type="button"
-                    onClick={() => setRiskLevel(prev => prev === r ? 'all' : r)}
-                    className={`px-2 py-1.5 text-xs rounded-md border transition-all font-medium ${
-                      riskLevel === r 
-                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm' 
-                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50 hover:border-gray-400'
-                    }`}
-                  >
-                    {r.charAt(0).toUpperCase() + r.slice(1)}
-                  </button>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Directory */}
+          <FilterSection title="Directory" defaultOpen={false}>
+            <div className="space-y-3">
+              <div className="text-xs text-gray-600">
+                <button type="button" onClick={() => setDirectoryPath([])} className="text-blue-600 hover:underline">root</button>
+                {directoryPath.map((seg, idx) => (
+                  <React.Fragment key={idx}>
+                    <span className="text-gray-400"> / </span>
+                    <button type="button" onClick={() => setDirectoryPath(directoryPath.slice(0, idx + 1))} className="text-blue-600 hover:underline truncate max-w-[80px] align-top">{seg}</button>
+                  </React.Fragment>
                 ))}
               </div>
-            </div>
-
-            {/* File Types Filter */}
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-cyan-500"></span>
-                File Types 
-                {loadingFileTypes && <span className="text-xs text-gray-500 animate-pulse">(loading...)</span>}
-              </label>
-              <div className="space-y-2">
-                <input
-                  type="text"
-                  value={fileTypeSearch}
-                  onChange={e => setFileTypeSearch(e.target.value)}
-                  placeholder="Search file types..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                />
-                <div className="border border-gray-200 rounded-lg max-h-32 overflow-auto bg-white shadow-sm">
+              {directoryChildren.length > 0 && (
+                <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg bg-gray-50">
                   <button
                     type="button"
-                    onClick={() => setSelectedFileTypes([])}
-                    className={`w-full text-left px-3 py-2 text-xs flex justify-between items-center border-b border-gray-100 transition-colors ${
-                      selectedFileTypes.length === 0 
-                        ? 'bg-blue-50 text-blue-700 font-medium' 
-                        : 'text-gray-600 hover:bg-gray-50'
+                    onClick={() => setDirectoryPath([])}
+                    className={`w-full text-left px-3 py-2 text-sm hover:bg-white transition-colors border-b border-gray-200 ${
+                      directoryPath.length === 0 ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'
                     }`}
                   >
-                    <span className="font-medium">All File Types</span>
-                    <span className="text-[10px] bg-gray-200 text-gray-600 rounded-full px-2 py-0.5 font-medium">{(projectFileTypes || []).length}</span>
-                  </button>
-                  {(projectFileTypes || [])
-                    .filter(ft => !fileTypeSearch || ft.toLowerCase().includes(fileTypeSearch.toLowerCase()))
-                    .map(ft => (
-                      <button
-                        key={ft}
-                        type="button"
-                        onClick={() => {
-                          if (selectedFileTypes.includes(ft)) {
-                            setSelectedFileTypes(prev => prev.filter(t => t !== ft));
-                          } else {
-                            setSelectedFileTypes(prev => [...prev, ft]);
-                          }
-                        }}
-                        className={`w-full text-left px-3 py-2 text-xs flex justify-between items-center hover:bg-gray-50 transition-colors ${
-                          selectedFileTypes.includes(ft) 
-                            ? 'bg-blue-50 text-blue-700 font-medium' 
-                            : 'text-gray-700'
-                        }`}
-                      >
-                        <span className="flex items-center gap-2">
-                          <span className="text-gray-400 font-mono">.</span>
-                          <span className="font-mono">{ft}</span>
-                        </span>
-                        {selectedFileTypes.includes(ft) && <span className="text-blue-600 text-xs font-bold">✓</span>}
-                      </button>
-                    ))}
-                  {(projectFileTypes || []).filter(ft => !fileTypeSearch || ft.toLowerCase().includes(fileTypeSearch.toLowerCase())).length === 0 && !loadingFileTypes && (
-                    <div className="px-3 py-2 text-xs text-gray-500 text-center italic">
-                      {(projectFileTypes || []).length === 0 ? 'No file types found' : 'No matches'}
+                    <div className="flex items-center justify-between">
+                      <span>All Directories</span>
+                      <span className="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded-full">{directoryChildren.length}</span>
                     </div>
-                  )}
+                  </button>
+                  {directoryChildren.map(dir => (
+                    <button
+                      key={dir.name}
+                      type="button"
+                      onClick={() => setDirectoryPath(prev => [...prev, dir.name])}
+                      className={`w-full text-left px-3 py-2 text-sm hover:bg-white transition-colors border-b border-gray-200 last:border-b-0 ${
+                        directoryPath.join('/').endsWith(dir.name) ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="truncate">{dir.name}</span>
+                        <span className="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded-full">{dir.count}</span>
+                      </div>
+                    </button>
+                  ))}
                 </div>
-              </div>
+              )}
             </div>
-          </div>
+          </FilterSection>
 
-          {/* Secondary Filters Row - Range controls */}
-          <div className="bg-gray-50 rounded-lg p-4">
-            <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-              Range Filters
-            </h3>
-            <div className="grid gap-6 md:grid-cols-2">
-              {/* Ownership Slider */}
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700 flex items-center justify-between">
-                  <span>Min Ownership</span>
-                  <span className="text-blue-600 font-bold">{minOwnership}%</span>
-                </label>
-                <input 
-                  type="range" 
-                  min="0" 
-                  max="100" 
-                  value={minOwnership} 
-                  onChange={e => setMinOwnership(Number(e.target.value))}
-                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
-                />
-                <div className="flex justify-between text-xs text-gray-500">
-                  <span>0%</span>
-                  <span>50%</span>
-                  <span>100%</span>
-                </div>
-              </div>
+          {/* File Types */}
+          <FilterSection title="File Types" defaultOpen={false} badge={selectedFileTypes.length ? `${selectedFileTypes.length} selected` : null}>
+            <MultiSelectFilter
+              label="Filter by file extensions"
+              options={(projectFileTypes || []).map(t => ({ value: t, label: t }))}
+              selected={selectedFileTypes}
+              onChange={setSelectedFileTypes}
+              searchable={true}
+            />
+          </FilterSection>
 
-              {/* Max Authors Slider */}
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700 flex items-center justify-between">
-                  <span>Max Authors</span>
-                  <span className="text-blue-600 font-bold">{maxAuthors}</span>
-                </label>
-                <input 
-                  type="range" 
-                  min="1" 
-                  max="20" 
-                  value={maxAuthors} 
-                  onChange={e => setMaxAuthors(Number(e.target.value))}
-                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
-                />
-                <div className="flex justify-between text-xs text-gray-500">
-                  <span>1</span>
-                  <span>10</span>
-                  <span>20+</span>
-                </div>
-              </div>
+          {/* Thresholds */}
+          <FilterSection title="Thresholds" defaultOpen={false}>
+            <div className="space-y-4">
+              <RangeFilter
+                label="Min Ownership %"
+                value={minOwnership}
+                onChange={setMinOwnership}
+                min={0}
+                max={100}
+                step={5}
+                description={`Files with primary ownership ≥ ${minOwnership}%`}
+              />
+              <RangeFilter
+                label="Max Authors"
+                value={maxAuthors}
+                onChange={setMaxAuthors}
+                min={1}
+                max={20}
+                step={1}
+                description={`Files with ≤ ${maxAuthors} total contributors`}
+              />
             </div>
-          </div>
+          </FilterSection>
         </div>
 
-        {/* Active badges - Enhanced */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium text-gray-700">Active Filters</h3>
-            {activeFilterCount > 0 && (
-              <span className="text-xs text-gray-500">{activeFilterCount} active</span>
-            )}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {selectedOwner && (
-              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-indigo-100 text-indigo-700 text-sm font-medium">
-                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
-                Owner: {selectedOwner}
-                <button onClick={() => setSelectedOwner('')} className="hover:text-indigo-900 ml-1 font-bold">×</button>
-              </span>
-            )}
-            {directoryPath.length > 0 && (
-              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-purple-100 text-purple-700 text-sm font-medium">
-                <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
-                Dir: /{directoryPath.join('/')}
-                <button onClick={() => setDirectoryPath([])} className="hover:text-purple-900 ml-1 font-bold">×</button>
-              </span>
-            )}
-            {riskLevel !== 'all' && (
-              <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${
-                riskLevel === 'critical' || riskLevel === 'high' 
-                  ? 'bg-red-100 text-red-700' 
-                  : riskLevel === 'medium' 
-                    ? 'bg-amber-100 text-amber-700' 
-                    : 'bg-green-100 text-green-700'
-              }`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${
-                  riskLevel === 'critical' || riskLevel === 'high' 
-                    ? 'bg-red-500' 
-                    : riskLevel === 'medium' 
-                      ? 'bg-amber-500' 
-                      : 'bg-green-500'
-                }`}></span>
-                Risk: {riskLevel}
-                <button onClick={() => setRiskLevel('all')} className="hover:opacity-80 ml-1 font-bold">×</button>
-              </span>
-            )}
-            {selectedFileTypes.length > 0 && (
-              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-cyan-100 text-cyan-700 text-sm font-medium">
-                <span className="w-1.5 h-1.5 rounded-full bg-cyan-500"></span>
-                Types: {selectedFileTypes.slice(0, 2).join(', ')}{selectedFileTypes.length > 2 && ` +${selectedFileTypes.length - 2}`}
-                <button onClick={() => setSelectedFileTypes([])} className="hover:text-cyan-900 ml-1 font-bold">×</button>
-              </span>
-            )}
-            {minOwnership > 0 && (
-              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-sm font-medium">
-                <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-                Own ≥ {minOwnership}%
-                <button onClick={() => setMinOwnership(0)} className="hover:text-blue-900 ml-1 font-bold">×</button>
-              </span>
-            )}
-            {maxAuthors < 20 && (
-              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-teal-100 text-teal-700 text-sm font-medium">
-                <span className="w-1.5 h-1.5 rounded-full bg-teal-500"></span>
-                ≤ {maxAuthors} authors
-                <button onClick={() => setMaxAuthors(20)} className="hover:text-teal-900 ml-1 font-bold">×</button>
-              </span>
-            )}
-            {activeFilterCount === 0 && (
-              <span className="text-sm text-gray-500 italic">No filters applied</span>
-            )}
-          </div>
+        {/* Active Filter Badges */}
+        <div className="pt-4 border-t border-gray-100">
+          <ActiveFilterBadges
+            filters={[
+              selectedOwner && { key: 'owner', label: `Owner: ${selectedOwner}`, color: 'bg-indigo-100 text-indigo-800 border border-indigo-200' },
+              directoryPath.length > 0 && { key: 'directory', label: `Dir: /${directoryPath.join('/')}`, color: 'bg-purple-100 text-purple-800 border border-purple-200' },
+              riskLevel !== 'all' && { 
+                key: 'risk', 
+                label: `Risk: ${riskLevel}`, 
+                color: (riskLevel === 'critical' || riskLevel === 'high') ? 'bg-red-100 text-red-800 border border-red-200' : (riskLevel === 'medium' ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-green-100 text-green-800 border border-green-200')
+              },
+              selectedFileTypes.length > 0 && { key: 'fileTypes', label: `Types: ${selectedFileTypes.length === 1 ? selectedFileTypes[0] : `${selectedFileTypes.length} selected`}`, color: 'bg-cyan-100 text-cyan-800 border border-cyan-200' },
+              minOwnership > 0 && { key: 'minOwnership', label: `Min Ownership: ${minOwnership}%`, color: 'bg-blue-100 text-blue-800 border border-blue-200' },
+              maxAuthors < 20 && { key: 'maxAuthors', label: `≤ ${maxAuthors} authors`, color: 'bg-teal-100 text-teal-800 border border-teal-200' }
+            ].filter(Boolean)}
+            onRemove={(key) => {
+              switch (key) {
+                case 'owner': setSelectedOwner(''); break;
+                case 'directory': setDirectoryPath([]); break;
+                case 'risk': setRiskLevel('all'); break;
+                case 'fileTypes': setSelectedFileTypes([]); break;
+                case 'minOwnership': setMinOwnership(0); break;
+                case 'maxAuthors': setMaxAuthors(20); break;
+              }
+            }}
+          />
         </div>
 
         {loading && <div className="text-xs text-gray-500 animate-pulse">Loading ownership…</div>}
-      </div>
+      </FilterContainer>
 
       {/* Table */}
-      <div className="bg-white border border-gray-200 rounded-lg p-4 overflow-x-auto">
-        <h3 className="text-sm font-medium text-gray-700 mb-3">File Ownership ({sorted.length} total, showing {paginatedData.length})</h3>
-        <table className="min-w-full text-xs">
-          <thead className="bg-gray-50 text-gray-600">
-            <tr>
-              {['filePath','primaryOwner','ownershipPercentage','totalContributors','busFactor','lastModified'].map(col => (
-                <th key={col} className={`text-left font-semibold px-3 py-2 ${col!=='busFactor'?'cursor-pointer hover:bg-gray-100':''}`} onClick={() => col!=='busFactor' && toggleSort(col === 'busFactor' ? 'busFactor' : col)}>
-                  <div className="flex items-center gap-1">
-                    <span>{col === 'filePath' ? 'File Path' : col === 'primaryOwner' ? 'Main Owner' : col === 'ownershipPercentage' ? 'Ownership %' : col === 'totalContributors' ? '# Authors' : col === 'busFactor' ? 'Bus Factor' : 'Last Modified'}</span>
-                    {sortConfig.key === col && <span className="text-[10px] text-blue-600">{sortConfig.direction==='asc'?'▲':'▼'}</span>}
-                  </div>
-                </th>
-              ))}
-              <th className="text-left font-semibold px-3 py-2">Risk</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {paginatedData.map((r,i) => {
-              const bf = computeBusFactor(r);
-              const risk = r.riskLevel;
-              return (
-                <tr key={i} className="hover:bg-gray-50">
-                  <td className="px-3 py-2 whitespace-nowrap max-w-xs truncate font-mono text-[11px] text-gray-800" title={r.filePath}>{r.filePath}</td>
-                  <td className="px-3 py-2 text-gray-800 whitespace-nowrap">{r.primaryOwner}</td>
-                  <td className="px-3 py-2 text-gray-800">{r.ownershipPercentage}%</td>
-                  <td className="px-3 py-2 text-gray-800">{r.totalContributors}</td>
-                  <td className="px-3 py-2 text-gray-800">{bf}</td>
-                  <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{r.lastModified || '-'}</td>
-                  <td className="px-3 py-2">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-[10px] font-medium ${riskBadge(risk)}`}>{risk}</span>
-                  </td>
-                </tr>
+      <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-900">File Ownership ({sorted.length} total, showing {paginatedData.length})</h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                {['filePath','primaryOwner','ownershipPercentage','totalContributors','busFactor','lastModified'].map(col => (
+                  <th key={col} className={`text-left font-medium text-xs uppercase tracking-wider px-4 py-3 ${col!=='busFactor'?'cursor-pointer hover:text-gray-700':'text-gray-500'} ${sortConfig.key===col?'text-gray-900 bg-gray-100':'text-gray-500'}`} onClick={() => col!=='busFactor' && toggleSort(col === 'busFactor' ? 'busFactor' : col)}>
+                    <div className="flex items-center gap-1">
+                      <span>{col === 'filePath' ? 'File Path' : col === 'primaryOwner' ? 'Main Owner' : col === 'ownershipPercentage' ? 'Ownership %' : col === 'totalContributors' ? '# Authors' : col === 'busFactor' ? 'Bus Factor' : 'Last Modified'}</span>
+                      {sortConfig.key === col && <span className="text-[10px]">{sortConfig.direction==='asc'?'▲':'▼'}</span>}
+                    </div>
+                  </th>
+                ))}
+                <th className="text-left font-medium text-xs uppercase tracking-wider px-4 py-3 text-gray-500">Risk</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {paginatedData.map((r,i) => {
+                const bf = computeBusFactor(r);
+                const risk = r.riskLevel;
+                return (
+                  <tr key={i} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-4 py-3 whitespace-nowrap max-w-xs truncate font-mono text-xs text-gray-900" title={r.filePath}>{r.filePath}</td>
+                    <td className="px-4 py-3 text-gray-900 whitespace-nowrap font-medium">{r.primaryOwner}</td>
+                    <td className="px-4 py-3 text-gray-900 font-medium">{r.ownershipPercentage}%</td>
+                    <td className="px-4 py-3 text-gray-600">{r.totalContributors}</td>
+                    <td className="px-4 py-3 text-gray-900 font-medium">{bf}</td>
+                    <td className="px-4 py-3 text-gray-500 whitespace-nowrap text-xs">{r.lastModified || '-'}</td>
+                    <td className="px-4 py-3">
+                      <span className={`font-medium text-xs ${riskBadge(risk)}`}>{risk}</span>
+                    </td>
+                  </tr>
               );
             })}
           </tbody>
@@ -707,72 +536,15 @@ const KnowledgeOwnership = () => {
         
         {/* Pagination Controls */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 bg-gray-50">
-            <div className="text-sm text-gray-700">
-              Showing {((currentPage - 1) * pageSize) + 1}–{Math.min(currentPage * pageSize, sorted.length)} of {sorted.length} files
-            </div>
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                className="px-3 py-1 text-sm border border-gray-300 rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
-              >
-                Previous
-              </button>
-              
-              <div className="flex items-center space-x-1">
-                {[...Array(Math.min(totalPages, 7))].map((_, i) => {
-                  let pageNum;
-                  if (totalPages <= 7) {
-                    pageNum = i + 1;
-                  } else if (currentPage <= 4) {
-                    pageNum = i + 1;
-                  } else if (currentPage > totalPages - 4) {
-                    pageNum = totalPages - 6 + i;
-                  } else {
-                    pageNum = currentPage - 3 + i;
-                  }
-                  
-                  return (
-                    <button
-                      key={pageNum}
-                      onClick={() => setCurrentPage(pageNum)}
-                      className={`px-3 py-1 text-sm border rounded-md ${
-                        currentPage === pageNum
-                          ? 'bg-blue-600 text-white border-blue-600'
-                          : 'border-gray-300 hover:bg-gray-100'
-                      }`}
-                    >
-                      {pageNum}
-                    </button>
-                  );
-                })}
-              </div>
-              
-              <button
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-                className="px-3 py-1 text-sm border border-gray-300 rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
-              >
-                Next
-              </button>
-              
-              <select
-                value={pageSize}
-                onChange={(e) => {
-                  setPageSize(Number(e.target.value));
-                  setCurrentPage(1);
-                }}
-                className="px-2 py-1 text-sm border border-gray-300 rounded-md"
-              >
-                <option value={10}>10 per page</option>
-                <option value={25}>25 per page</option>
-                <option value={50}>50 per page</option>
-                <option value={100}>100 per page</option>
-              </select>
-            </div>
-          </div>
+          <UnifiedPagination
+            currentPage={currentPage}
+            pageSize={pageSize}
+            totalItems={sorted.length}
+            onPageChange={(p) => setCurrentPage(Math.max(1, Math.min(p, totalPages)))}
+            onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
+          />
         )}
+        </div>
       </div>
 
       {/* Help Section */}

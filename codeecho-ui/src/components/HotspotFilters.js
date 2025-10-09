@@ -70,37 +70,34 @@ const HotspotFilters = ({
   const clearFileTypes = () => onSelectedFileTypesChange && onSelectedFileTypesChange([]);
 
   return (
-  <div className="bg-white border border-gray-200 rounded-lg p-3 md:p-4 shadow-sm space-y-4">
+  <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-2 text-gray-700 font-medium">
-          <FunnelIcon className="h-5 w-5 text-blue-600" />
-            <span>Filters</span>
-            {activeFilterCount > 0 && (
-              <span className="ml-1 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-100 text-blue-700">
-                {activeFilterCount}
-              </span>
-            )}
-          </div>
-          <div className="text-[11px] text-gray-500">
+        <div className="flex items-center gap-4">
+          <h2 className="text-lg font-semibold text-gray-900">Filters</h2>
+          <div className="text-sm text-gray-500">
             Showing <span className="font-medium text-gray-700">{filteredHotspotCount}</span> of {totalHotspotCount}
           </div>
+          {activeFilterCount > 0 && (
+            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+              {activeFilterCount} active
+            </span>
+          )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-3">
           <button
             type="button"
             onClick={onReset}
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-gray-300 bg-white text-xs font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="inline-flex items-center gap-1 px-4 py-2 rounded-md border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors"
           >
             <ArrowPathIcon className="h-4 w-4" /> Reset
           </button>
         </div>
       </div>
 
-  <div className="grid gap-4 md:gap-5 md:grid-cols-3 items-start">
-        {/* Time Range (segmented) */}
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700 mb-2">Time Range</label>
+  <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 items-start">
+        {/* Time Range */}
+        <div className="space-y-4">
+          <h3 className="text-sm font-medium text-gray-900 border-b border-gray-200 pb-2">Time Range</h3>
           <div className="flex flex-wrap gap-2 mb-3">
             {[
               {value:'all',label:'All'},
@@ -113,7 +110,7 @@ const HotspotFilters = ({
                 key={p.value}
                 type="button"
                 onClick={() => onTimeRangeChange(p.value)}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium border transition ${timeRange===p.value ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'}`}
+                className={`px-3 py-2 rounded-md text-sm font-medium border transition ${timeRange===p.value ? 'bg-gray-900 text-white border-gray-900' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'}`}
               >{p.label}</button>
             ))}
           </div>
