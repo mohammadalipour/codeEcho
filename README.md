@@ -29,16 +29,29 @@ Built with **Clean Architecture** principles:
 
 ## 🚀 **Quick Start**
 
-### **Complete Stack (Recommended)**
+### **🐳 Docker-Only Setup (No Local Go/Node Required)**
+
+**Perfect for users without Go or Node.js installed locally!**
 
 ```bash
-# Start everything with Docker
-docker-compose -f docker-compose.ddd.yml up --build -d
+# Clone and start complete development environment
+git clone https://github.com/mohammadalipour/codeEcho.git
+cd codeEcho
+make docker-dev
 
 # Access your applications:
 # - React Dashboard: http://localhost:3000
 # - API Health Check: http://localhost:8080/api/v1/health
 # - Database: localhost:3306
+```
+
+**📖 See [DOCKER_SETUP.md](./DOCKER_SETUP.md) for complete Docker-only development guide**
+
+### **Alternative: Manual Docker Compose**
+
+```bash
+# Start everything with Docker Compose directly
+docker-compose -f docker-compose.ddd.yml up --build -d
 ```
 
 ### **Analyze Your First Repository**

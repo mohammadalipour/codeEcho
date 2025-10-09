@@ -1,6 +1,9 @@
 # Build stage
 FROM golang:1.24-alpine AS builder
 
+# Install git for downloading dependencies
+RUN apk add --no-cache git
+
 WORKDIR /app
 
 # Copy go mod files
@@ -12,8 +15,11 @@ RUN go mod download
 # Copy source code
 COPY . .
 
+# Verify module structure
+RUN go mod verify
+
 # Build the CLI application
-RUN CGO_ENABLED=0 GOOS=linux go build -o codeecho-cli ./interfaces/cli
+RUN CGO_ENABLED=0 GOOS=linux go build -v -o codeecho-cli ./interfaces/cli
 
 # Final stage
 FROM alpine:latest

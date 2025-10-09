@@ -36,32 +36,48 @@ help: ## Show this help message
 # ==============================================================================
 
 .PHONY: install
-install: ## Install all dependencies (Go modules and npm packages)
+install: ## Install all dependencies (Go modules and npm packages) - Requires local Go/Node
 	@echo "$(YELLOW)Installing Go dependencies...$(NC)"
 	go mod download
 	go mod tidy
 	@echo "$(YELLOW)Installing frontend dependencies...$(NC)"
 	cd codeecho-ui && npm install
 
+.PHONY: docker-install
+docker-install: docker-build ## Install all dependencies using Docker only (no local Go/Node required)
+	@echo "$(GREEN)Dependencies installed via Docker build process$(NC)"
+
 .PHONY: build
-build: build-api build-cli build-ui ## Build all components (API, CLI, and UI)
+build: build-api build-cli build-ui ## Build all components (API, CLI, and UI) - Requires local Go/Node
+
+.PHONY: docker-build-and-extract
+docker-build-and-extract: docker-build ## Build all components using Docker and extract binaries
+	@echo "$(YELLOW)Extracting built binaries from Docker images...$(NC)"
+	@mkdir -p $(BINARY_DIR)
+	@docker create --name temp-api $(APP_NAME)-codeecho-api:latest
+	@docker cp temp-api:/root/codeecho-api ./$(API_BINARY) || true
+	@docker rm temp-api || true
+	@docker create --name temp-cli $(APP_NAME)-codeecho-cli:latest
+	@docker cp temp-cli:/root/codeecho-cli ./$(CLI_BINARY) || true
+	@docker rm temp-cli || true
+	@echo "$(GREEN)Binaries extracted to $(BINARY_DIR)/$(NC)"
 
 .PHONY: build-api
-build-api: ## Build the API server binary
+build-api: ## Build the API server binary - Requires local Go
 	@echo "$(YELLOW)Building API server...$(NC)"
 	@mkdir -p $(BINARY_DIR)
 	cd interfaces/api && go build -o ../../$(API_BINARY) .
 	@echo "$(GREEN)API binary built: $(API_BINARY)$(NC)"
 
 .PHONY: build-cli
-build-cli: ## Build the CLI binary
+build-cli: ## Build the CLI binary - Requires local Go
 	@echo "$(YELLOW)Building CLI...$(NC)"
 	@mkdir -p $(BINARY_DIR)
 	cd interfaces/cli && go build -o ../../$(CLI_BINARY) .
 	@echo "$(GREEN)CLI binary built: $(CLI_BINARY)$(NC)"
 
 .PHONY: build-ui
-build-ui: ## Build the React frontend
+build-ui: ## Build the React frontend - Requires local Node
 	@echo "$(YELLOW)Building React frontend...$(NC)"
 	cd codeecho-ui && npm run build
 	@echo "$(GREEN)Frontend built successfully$(NC)"
@@ -93,27 +109,50 @@ run-cli: ## Run the CLI (use ARGS="..." to pass arguments)
 # ==============================================================================
 
 .PHONY: test
-test: test-go test-ui ## Run all tests
+test: test-go test-ui ## Run all tests - Requires local Go/Node
+
+.PHONY: docker-test
+docker-test: docker-test-go docker-test-ui ## Run all tests using Docker only
 
 .PHONY: test-go
-test-go: ## Run Go tests
+test-go: ## Run Go tests - Requires local Go
 	@echo "$(YELLOW)Running Go tests...$(NC)"
 	go test -v ./...
 
+.PHONY: docker-test-go
+docker-test-go: ## Run Go tests using Docker only
+	@echo "$(YELLOW)Running Go tests in Docker...$(NC)"
+	@docker run --rm -v $(PWD):/app -w /app golang:1.24-alpine sh -c "apk add --no-cache git && go mod download && go test -v ./..."
+
 .PHONY: test-ui
-test-ui: ## Run React tests
+test-ui: ## Run React tests - Requires local Node
 	@echo "$(YELLOW)Running React tests...$(NC)"
 	cd codeecho-ui && npm test -- --coverage --watchAll=false
 
+.PHONY: docker-test-ui
+docker-test-ui: ## Run React tests using Docker only
+	@echo "$(YELLOW)Running React tests in Docker...$(NC)"
+	@docker run --rm -v $(PWD)/codeecho-ui:/app -w /app node:18-alpine sh -c "npm ci && npm test -- --coverage --watchAll=false"
+
 .PHONY: test-integration
-test-integration: ## Run integration tests
+test-integration: ## Run integration tests - Requires local Go
 	@echo "$(YELLOW)Running integration tests...$(NC)"
 	go test -tags=integration -v ./...
 
+.PHONY: docker-test-integration
+docker-test-integration: ## Run integration tests using Docker only
+	@echo "$(YELLOW)Running integration tests in Docker...$(NC)"
+	@docker run --rm -v $(PWD):/app -w /app golang:1.24-alpine sh -c "apk add --no-cache git && go mod download && go test -tags=integration -v ./..."
+
 .PHONY: benchmark
-benchmark: ## Run Go benchmarks
+benchmark: ## Run Go benchmarks - Requires local Go
 	@echo "$(YELLOW)Running benchmarks...$(NC)"
 	go test -bench=. -benchmem ./...
+
+.PHONY: docker-benchmark
+docker-benchmark: ## Run Go benchmarks using Docker only
+	@echo "$(YELLOW)Running benchmarks in Docker...$(NC)"
+	@docker run --rm -v $(PWD):/app -w /app golang:1.24-alpine sh -c "apk add --no-cache git && go mod download && go test -bench=. -benchmem ./..."
 
 # ==============================================================================
 # Docker Operations
@@ -213,30 +252,56 @@ db-restore: ## Restore database from backup.sql
 # ==============================================================================
 
 .PHONY: fmt
-fmt: ## Format Go code
+fmt: ## Format Go code - Requires local Go
 	@echo "$(YELLOW)Formatting Go code...$(NC)"
 	go fmt ./...
 	@echo "$(GREEN)Code formatted$(NC)"
 
+.PHONY: docker-fmt
+docker-fmt: ## Format Go code using Docker only
+	@echo "$(YELLOW)Formatting Go code in Docker...$(NC)"
+	@docker run --rm -v $(PWD):/app -w /app golang:1.24-alpine sh -c "go fmt ./..."
+	@echo "$(GREEN)Code formatted$(NC)"
+
 .PHONY: vet
-vet: ## Run go vet
+vet: ## Run go vet - Requires local Go
 	@echo "$(YELLOW)Running go vet...$(NC)"
 	go vet ./...
 
+.PHONY: docker-vet
+docker-vet: ## Run go vet using Docker only
+	@echo "$(YELLOW)Running go vet in Docker...$(NC)"
+	@docker run --rm -v $(PWD):/app -w /app golang:1.24-alpine sh -c "apk add --no-cache git && go mod download && go vet ./..."
+
 .PHONY: lint
-lint: ## Run golangci-lint
+lint: ## Run golangci-lint - Requires local golangci-lint
 	@echo "$(YELLOW)Running golangci-lint...$(NC)"
 	golangci-lint run
 
+.PHONY: docker-lint
+docker-lint: ## Run golangci-lint using Docker only
+	@echo "$(YELLOW)Running golangci-lint in Docker...$(NC)"
+	@docker run --rm -v $(PWD):/app -w /app golangci/golangci-lint:latest golangci-lint run
+
 .PHONY: lint-ui
-lint-ui: ## Run ESLint on React code
+lint-ui: ## Run ESLint on React code - Requires local Node
 	@echo "$(YELLOW)Running ESLint...$(NC)"
 	cd codeecho-ui && npm run lint
 
+.PHONY: docker-lint-ui
+docker-lint-ui: ## Run ESLint using Docker only
+	@echo "$(YELLOW)Running ESLint in Docker...$(NC)"
+	@docker run --rm -v $(PWD)/codeecho-ui:/app -w /app node:18-alpine sh -c "npm ci && npm run lint"
+
 .PHONY: fix-ui
-fix-ui: ## Fix ESLint issues automatically
+fix-ui: ## Fix ESLint issues automatically - Requires local Node
 	@echo "$(YELLOW)Fixing ESLint issues...$(NC)"
 	cd codeecho-ui && npm run lint:fix
+
+.PHONY: docker-fix-ui
+docker-fix-ui: ## Fix ESLint issues using Docker only
+	@echo "$(YELLOW)Fixing ESLint issues in Docker...$(NC)"
+	@docker run --rm -v $(PWD)/codeecho-ui:/app -w /app node:18-alpine sh -c "npm ci && npm run lint:fix"
 
 # ==============================================================================
 # Utilities
@@ -287,6 +352,44 @@ health: ## Check application health
 	@curl -s -o /dev/null -w "UI Status: %{http_code}\n" http://localhost:$(UI_PORT) || echo "UI not responding"
 
 # ==============================================================================
+# Docker-Only Development (No Local Go/Node Required)
+# ==============================================================================
+
+.PHONY: docker-dev
+docker-dev: docker-build docker-up ## Complete Docker-only development setup
+	@echo "$(GREEN)=== Docker-Only Development Environment Started! ===$(NC)"
+	@echo "$(GREEN)No local Go or Node.js installation required$(NC)"
+	@echo ""
+	@echo "$(BLUE)Services Available:$(NC)"
+	@echo "$(BLUE)API: http://localhost:$(API_PORT)/api/v1/health$(NC)"
+	@echo "$(BLUE)UI: http://localhost:$(UI_PORT)$(NC)"
+	@echo "$(BLUE)Database: mysql://localhost:3306$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Useful Docker-only commands:$(NC)"
+	@echo "$(YELLOW)- make docker-test$(NC)       # Run all tests"
+	@echo "$(YELLOW)- make docker-lint$(NC)       # Run all linters"  
+	@echo "$(YELLOW)- make docker-fmt$(NC)        # Format code"
+	@echo "$(YELLOW)- make docker-cli-run$(NC)    # Run CLI commands"
+	@echo "$(YELLOW)- make docker-logs$(NC)       # View logs"
+	@echo "$(YELLOW)- make stop$(NC)              # Stop services"
+
+.PHONY: docker-cli-run
+docker-cli-run: ## Run CLI commands in Docker (use: make docker-cli-run ARGS="your-command")
+	@echo "$(YELLOW)Running CLI in Docker: $(ARGS)$(NC)"
+	@docker exec -it codeecho-cli ./codeecho-cli $(ARGS)
+
+.PHONY: docker-cli-shell
+docker-cli-shell: ## Get shell access to CLI container
+	@echo "$(YELLOW)Opening shell in CLI container...$(NC)"
+	@docker exec -it codeecho-cli /bin/sh
+
+.PHONY: docker-quality
+docker-quality: docker-fmt docker-vet docker-lint docker-lint-ui ## Run all quality checks using Docker only
+
+.PHONY: docker-ci
+docker-ci: docker-quality docker-test docker-build ## Complete Docker-only CI pipeline
+
+# ==============================================================================
 # Development Shortcuts
 # ==============================================================================
 
@@ -305,6 +408,10 @@ restart: docker-restart ## Restart development environment
 .PHONY: reset
 reset: clean docker-down docker-build docker-up db-reset ## Full reset (clean, rebuild, restart, reset DB)
 	@echo "$(GREEN)Full reset complete!$(NC)"
+
+.PHONY: docker-reset
+docker-reset: docker-down docker-build docker-up db-reset ## Docker-only full reset
+	@echo "$(GREEN)Docker-only full reset complete!$(NC)"
 
 # ==============================================================================
 # CI/CD
