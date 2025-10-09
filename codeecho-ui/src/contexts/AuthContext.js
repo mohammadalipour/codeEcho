@@ -13,6 +13,30 @@ const api = axios.create({
   withCredentials: true, // Important for cookie support
 });
 
+// Token management functions
+const getStoredToken = () => {
+  return localStorage.getItem('auth_token');
+};
+
+const setStoredToken = (token) => {
+  if (token) {
+    localStorage.setItem('auth_token', token);
+    api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+  } else {
+    localStorage.removeItem('auth_token');
+    delete api.defaults.headers.common['Authorization'];
+  }
+};
+
+// Set up axios interceptor to add token to requests
+api.interceptors.request.use((config) => {
+  const token = getStoredToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 // Auth Context
 const AuthContext = createContext();
 
@@ -66,27 +90,39 @@ export const AuthProvider = ({ children }) => {
 
   // Check if user is authenticated on app load
   useEffect(() => {
-    checkAuth();
+    initializeAuth();
   }, []);
+
+  const initializeAuth = async () => {
+    const token = getStoredToken();
+    if (token) {
+      // Set the token in axios headers
+      setStoredToken(token);
+      // Verify the token by calling checkAuth
+      await checkAuth();
+    } else {
+      // No token found, user is not authenticated
+      dispatch({ type: 'SET_USER', payload: null });
+    }
+  };
 
   const checkAuth = async () => {
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
       
-      // Create a special request that bypasses the interceptor
-      const checkResponse = await axios.get('/me', {
-        baseURL: API_BASE_URL,
-        withCredentials: true,
-        headers: { 'Content-Type': 'application/json' },
-        validateStatus: status => status < 500
-      });
+      const checkResponse = await api.get('/me');
       
       if (checkResponse.status === 200 && checkResponse.data.user) {
         dispatch({ type: 'SET_USER', payload: checkResponse.data.user });
       } else {
+        // Token is invalid, clear it
+        setStoredToken(null);
         dispatch({ type: 'SET_USER', payload: null });
       }
     } catch (error) {
+      console.error('Auth check failed:', error);
+      // Token is invalid or expired, clear it
+      setStoredToken(null);
       dispatch({ type: 'SET_USER', payload: null });
     }
   };
@@ -96,7 +132,10 @@ export const AuthProvider = ({ children }) => {
       dispatch({ type: 'SET_LOADING', payload: true });
       const response = await api.post('/auth/login', { email, password });
       
-      if (response.data && response.data.user) {
+      if (response.data && response.data.user && response.data.token) {
+        // Store the JWT token
+        setStoredToken(response.data.token);
+        
         dispatch({ type: 'LOGIN_SUCCESS', payload: response.data });
         return { success: true, user: response.data.user };
       } else {
@@ -115,6 +154,8 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
+      // Clear stored token
+      setStoredToken(null);
       dispatch({ type: 'LOGOUT' });
     }
   };
@@ -129,13 +170,16 @@ export const AuthProvider = ({ children }) => {
     
     try {
       const response = await api.post('/auth/refresh');
-      if (response.data && response.data.user) {
+      if (response.data && response.data.user && response.data.token) {
+        // Update the stored token
+        setStoredToken(response.data.token);
         dispatch({ type: 'SET_USER', payload: response.data.user });
         return true;
       }
       return false;
     } catch (error) {
       console.error('Token refresh failed:', error);
+      setStoredToken(null);
       dispatch({ type: 'LOGOUT' });
       return false;
     } finally {

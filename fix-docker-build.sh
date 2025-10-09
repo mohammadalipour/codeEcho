@@ -3,8 +3,8 @@
 # Quick fix script for Docker build issues
 # Run this when you get "package codeecho/infrastructure/analyzer is not in std" error
 
-echo "🔧 Quick Fix for Docker Build Issues"
-echo "===================================="
+echo "🔧 Safe CodeEcho Docker Build Fix"
+echo "=================================="
 echo
 
 # Colors
@@ -13,19 +13,27 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-echo -e "${YELLOW}This script will fix the common Go module build error in Docker${NC}"
+# Safety check - make sure we're in the right project
+if [ ! -f "go.mod" ] || [ ! -f "docker-compose.ddd.yml" ]; then
+    echo -e "${RED}❌ Error: This script must be run from the codeEcho project root directory${NC}"
+    echo "   Make sure you're in the directory with go.mod and docker-compose.ddd.yml files"
+    exit 1
+fi
+
+echo -e "${YELLOW}This script will ONLY affect codeEcho containers and images${NC}"
+echo -e "${GREEN}✅ Safe: Will not touch other Docker projects${NC}"
 echo
 
-# 1. Stop any running containers
-echo "1. Stopping any running containers..."
-make docker-down 2>/dev/null || docker-compose -f docker-compose.ddd.yml down 2>/dev/null || true
+# 1. Stop only codeEcho containers
+echo "1. Stopping only codeEcho containers..."
+docker-compose -f docker-compose.ddd.yml down 2>/dev/null || true
 
-# 2. Clean Docker cache
-echo "2. Cleaning Docker cache..."
-docker system prune -f
+# 2. Remove only codeEcho related containers (if stopped)
+echo "2. Removing only codeEcho containers..."
+docker rm codeecho-api codeecho-cli codeecho-ui codeecho-mysql 2>/dev/null || true
 
-# 3. Remove old images
-echo "3. Removing old images..."
+# 3. Remove only codeEcho related images
+echo "3. Removing only codeEcho images..."
 docker rmi codeecho-codeecho-api:latest 2>/dev/null || true
 docker rmi codeecho-codeecho-cli:latest 2>/dev/null || true  
 docker rmi codeecho-codeecho-ui:latest 2>/dev/null || true

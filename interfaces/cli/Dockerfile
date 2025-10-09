@@ -1,8 +1,8 @@
 # Build stage
 FROM golang:1.24-alpine AS builder
 
-# Install git for downloading dependencies
-RUN apk add --no-cache git
+# Install git and ca-certificates for downloading dependencies
+RUN apk add --no-cache git ca-certificates
 
 WORKDIR /app
 
@@ -10,28 +10,25 @@ WORKDIR /app
 ENV GO111MODULE=on
 ENV GOPROXY=https://proxy.golang.org,direct
 ENV GOSUMDB=sum.golang.org
+ENV CGO_ENABLED=0
+ENV GOOS=linux
 
 # Copy go mod files first
 COPY go.mod go.sum ./
 
-# Ensure we're in module mode and download dependencies
-RUN go mod download
+# Download dependencies with better error handling
+RUN go mod download -x
 RUN go mod verify
 
-# Copy source code
+# Copy source code (make sure .dockerignore doesn't exclude needed files)
 COPY . .
 
-# Debug: Show module info and verify structure
-RUN go list -m
-RUN go list ./...
+# Verify the module and packages exist before building
+RUN echo "Module info:" && go list -m
+RUN echo "Available packages:" && go list -f '{{.ImportPath}}' ./...
 
-# Clean module cache and rebuild
-RUN go clean -modcache
-RUN go mod download
-RUN go mod tidy
-
-# Build the CLI application with module mode explicitly enabled
-RUN CGO_ENABLED=0 GOOS=linux GO111MODULE=on go build -v -o codeecho-cli ./interfaces/cli
+# Build the CLI application
+RUN go build -v -a -installsuffix cgo -o codeecho-cli ./interfaces/cli
 
 # Final stage
 FROM alpine:latest

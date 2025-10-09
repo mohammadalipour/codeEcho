@@ -12,23 +12,32 @@ import (
 // AuthMiddleware creates a JWT authentication middleware
 func AuthMiddleware(jwtService *services.JWTService) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Get token from Authorization header
+		var token string
+
+		// First, try to get token from Authorization header
 		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header required"})
+		if authHeader != "" {
+			// Extract token from "Bearer <token>"
+			parts := strings.Split(authHeader, " ")
+			if len(parts) == 2 && parts[0] == "Bearer" {
+				token = parts[1]
+			}
+		}
+
+		// If no token in header, try to get from cookie
+		if token == "" {
+			cookieToken, err := c.Cookie("auth_token")
+			if err == nil && cookieToken != "" {
+				token = cookieToken
+			}
+		}
+
+		// If still no token found, return unauthorized
+		if token == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization token required"})
 			c.Abort()
 			return
 		}
-
-		// Extract token from "Bearer <token>"
-		parts := strings.Split(authHeader, " ")
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid authorization header format"})
-			c.Abort()
-			return
-		}
-
-		token := parts[1]
 
 		// Validate token
 		claims, err := jwtService.ValidateToken(token)
@@ -51,19 +60,35 @@ func AuthMiddleware(jwtService *services.JWTService) gin.HandlerFunc {
 // OptionalAuthMiddleware creates a middleware that optionally authenticates users
 func OptionalAuthMiddleware(jwtService *services.JWTService) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		var token string
+
+		// Try Authorization header first
 		authHeader := c.GetHeader("Authorization")
 		if authHeader != "" {
 			parts := strings.Split(authHeader, " ")
 			if len(parts) == 2 && parts[0] == "Bearer" {
-				token := parts[1]
-				if claims, err := jwtService.ValidateToken(token); err == nil {
-					c.Set("userID", claims.UserID)
-					c.Set("userEmail", claims.Email)
-					c.Set("userRole", claims.Role)
-					c.Set("userName", claims.FirstName+" "+claims.LastName)
-				}
+				token = parts[1]
 			}
 		}
+
+		// Try cookie if no header token
+		if token == "" {
+			cookieToken, err := c.Cookie("auth_token")
+			if err == nil && cookieToken != "" {
+				token = cookieToken
+			}
+		}
+
+		// If token found, validate it
+		if token != "" {
+			if claims, err := jwtService.ValidateToken(token); err == nil {
+				c.Set("userID", claims.UserID)
+				c.Set("userEmail", claims.Email)
+				c.Set("userRole", claims.Role)
+				c.Set("userName", claims.FirstName+" "+claims.LastName)
+			}
+		}
+
 		c.Next()
 	}
 }
