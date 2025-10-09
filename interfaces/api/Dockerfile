@@ -6,21 +6,21 @@ WORKDIR /app
 # 1. Copy go mod and sum files first for better layer caching
 COPY go.mod go.sum ./
 
-# 2. Tidy the modules and vendor all dependencies. This is the crucial fix.
-# 'go mod tidy' ensures your go.mod file is accurate.
-# 'go mod vendor' creates a 'vendor' directory with all required packages.
+# 2. Tidy the modules and vendor all dependencies.
+# This creates a 'vendor' directory with all required packages.
 RUN go mod tidy
 RUN go mod vendor
 
 # 3. Copy the rest of your source code
 COPY . .
 
-# 4. Build the API application. The Go toolchain will automatically use the 'vendor' directory.
-RUN CGO_ENABLED=0 GOOS=linux go build -o codeecho-api ./interfaces/api
+# 4. Build the API application, explicitly using the vendor directory
+RUN CGO_ENABLED=0 GOOS=linux go build -mod=vendor -o codeecho-api ./interfaces/api
 
-# Final stage - This part was already correct
+# Final stage
 FROM alpine:latest
 
+# Install CA certificates for making HTTPS requests
 RUN apk --no-cache add ca-certificates
 
 WORKDIR /root/
