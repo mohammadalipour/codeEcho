@@ -909,9 +909,11 @@ const ProjectCard = ({ project, stats, isAnalyzing, analysisStatus, elapsed, onE
             <div className="flex items-center text-gray-600 overflow-hidden">
               <CalendarIcon className="flex-shrink-0 mr-1.5 h-3 w-3 text-gray-400" />
               <span className="font-medium whitespace-nowrap">Created</span>
-              <span className="ml-1.5 text-gray-900 truncate">{format(new Date(project.created_at), 'MMM d, yyyy')}</span>
+              <span className="ml-1.5 text-gray-900 truncate">
+                {project.created_at ? format(new Date(project.created_at), 'MMM d, yyyy') : 'Unknown'}
+              </span>
             </div>
-            {project.last_analyzed_hash && (
+            {project.last_analyzed_hash && project.last_analyzed_hash.length > 0 && (
               <div className="flex items-center text-gray-600 overflow-hidden">
                 <CodeBracketIcon className="flex-shrink-0 mr-1.5 h-3 w-3 text-gray-400" />
                 <span className="font-medium whitespace-nowrap">Last commit</span>
