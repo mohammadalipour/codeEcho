@@ -60,17 +60,9 @@ const KnowledgeRisk = () => {
   return (
     <div className="w-full px-4 sm:px-6 lg:px-8 py-6">
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            {isProjectSpecific 
-              ? `Knowledge Risk Analysis - ${projectName}`
-              : 'Knowledge Risk Analysis'}
+          <h1 className="text-xl font-semibold text-gray-900">
+            Knowledge Risk Analysis
           </h1>
-          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400 max-w-3xl">
-            {isProjectSpecific
-              ? `Ownership concentration, author activity, and bus factor indicators for ${projectName}`
-              : 'Select a project below to analyze ownership concentration, author activity, and bus factor indicators.'}
-          </p>
-
           {!isProjectSpecific && (
             <div className="mt-6 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl shadow-xl p-8 w-full">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Choose a Project</h2>
@@ -98,13 +90,8 @@ const KnowledgeRisk = () => {
           )}
 
           {/* Knowledge Ownership Definition */}
-          <div className="mt-8 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-800 rounded-2xl p-8">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">What is Knowledge Ownership?</h3>
-            <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
-              Knowledge ownership reflects how concentrated understanding of a code area is. Extremely high concentration (one
-              person knows everything) creates risk. Extremely low concentration (too many casual editors) can also dilute accountability.
-              Aim for balanced distribution with redundancy for critical modules.
-            </p>
+        <div className="mt-2 text-sm text-gray-600 max-w-3xl">
+            Knowledge ownership reflects how concentrated understanding of a code area is. Extremely high concentration (one person knows everything) creates risk. Extremely low concentration (too many casual editors) can also dilute accountability. Aim for balanced distribution with redundancy for critical modules.
           </div>
         </div>
 

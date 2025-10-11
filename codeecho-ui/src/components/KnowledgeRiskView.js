@@ -402,14 +402,6 @@ const KnowledgeRiskView = ({ projectId, className = "" }) => {
     <div className={`space-y-6 ${className}`}>
       <div className="space-y-6">
       {/* Compact Header */}
-      <div className="bg-white rounded-lg shadow px-6 py-3">
-        <div className="flex items-center space-x-3">
-          <UsersIcon className="h-6 w-6 text-blue-500" />
-          <h2 className="text-lg font-semibold text-gray-900">Knowledge Risk Analysis</h2>
-          <span className="text-xs text-gray-500">Ownership concentration & author activity</span>
-        </div>
-      </div>
-
       {/* Unified Filter Panel */}
       <FilterContainer
         loading={loading}

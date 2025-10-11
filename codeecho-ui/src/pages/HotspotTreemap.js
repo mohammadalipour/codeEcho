@@ -336,7 +336,7 @@ const HotspotTreemap = () => {
       {/* Header (back button removed; tabs handle navigation) */}
       <div className="mb-6">
                 <h1 className="text-xl font-semibold text-gray-900">
-          Hotspot Treemap - {project?.name || `Project ${projectId}`}
+          Hotspot Treemap
         </h1>
         <p className="mt-2 text-sm text-gray-600 max-w-3xl">
           Visualize change frequency and risk across the codebase. Use filters to focus on time windows, repositories, or directories.

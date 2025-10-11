@@ -14,6 +14,15 @@ const api = axios.create({
   validateStatus: status => status < 500, // Handle 4xx errors in catch block
 });
 
+// Set up axios interceptor to add token to requests
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('auth_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 // API Context
 const ApiContext = createContext();
 
@@ -101,6 +110,98 @@ export const ApiProvider = ({ children }) => {
         return response.data;
       } catch (error) {
         dispatch({ type: 'SET_ERROR', payload: error.message });
+        throw error;
+      }
+    },
+
+    // Enhanced project creation methods
+    async createEnhancedProject(projectData) {
+      try {
+        dispatch({ type: 'SET_LOADING', payload: true });
+        const response = await api.post('/projects/enhanced', projectData);
+        
+        if (!response.data || response.status >= 400) {
+          throw new Error(response.data?.error || 'Failed to create enhanced project');
+        }
+
+        await this.getProjects(); // Refresh projects list
+        return response.data;
+      } catch (error) {
+        dispatch({ type: 'SET_ERROR', payload: error.message });
+        throw error;
+      }
+    },
+
+    async createPrivateProject(projectData) {
+      try {
+        dispatch({ type: 'SET_LOADING', payload: true });
+        const response = await api.post('/projects/private', projectData);
+        
+        if (!response.data || response.status >= 400) {
+          throw new Error(response.data?.error || 'Failed to create private project');
+        }
+
+        await this.getProjects(); // Refresh projects list
+        return response.data;
+      } catch (error) {
+        dispatch({ type: 'SET_ERROR', payload: error.message });
+        throw error;
+      }
+    },
+
+    async createProjectFromUpload(projectData) {
+      try {
+        dispatch({ type: 'SET_LOADING', payload: true });
+        const response = await api.post('/projects/from-upload', projectData);
+        
+        if (!response.data || response.status >= 400) {
+          throw new Error(response.data?.error || 'Failed to create project from upload');
+        }
+
+        await this.getProjects(); // Refresh projects list
+        return response.data;
+      } catch (error) {
+        dispatch({ type: 'SET_ERROR', payload: error.message });
+        throw error;
+      }
+    },
+
+    // Upload management methods
+    async uploadArchive(file) {
+      try {
+        const formData = new FormData();
+        formData.append('archive', file);
+        
+        const response = await api.post('/upload/archive', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+        
+        if (!response.data || response.status >= 400) {
+          throw new Error(response.data?.error || 'Failed to upload archive');
+        }
+
+        return response.data;
+      } catch (error) {
+        throw error;
+      }
+    },
+
+    async getUploadInfo(uploadId) {
+      try {
+        const response = await api.get(`/upload/${uploadId}`);
+        return response.data;
+      } catch (error) {
+        throw error;
+      }
+    },
+
+    async cleanupUpload(uploadId) {
+      try {
+        const response = await api.delete(`/upload/${uploadId}`);
+        return response.data;
+      } catch (error) {
         throw error;
       }
     },

@@ -26,8 +26,8 @@ func NewProjectRepository(db *sql.DB) repositories.ProjectRepository {
 // Create creates a new project
 func (r *ProjectRepositoryImpl) Create(project *entities.Project) error {
 	query := `
-		INSERT INTO projects (name, repo_path, last_analyzed_hash, created_at) 
-		VALUES (?, ?, ?, ?)
+		INSERT INTO projects (name, repo_path, repo_type, auth_username, auth_token, auth_ssh_key, last_analyzed_hash, created_at) 
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	var lastAnalyzedHash *string
@@ -36,7 +36,28 @@ func (r *ProjectRepositoryImpl) Create(project *entities.Project) error {
 		lastAnalyzedHash = &hashStr
 	}
 
-	result, err := r.db.Exec(query, project.Name, project.RepoPath, lastAnalyzedHash, project.CreatedAt)
+	var authUsername, authToken, authSSHKey *string
+	if project.AuthConfig != nil {
+		if project.AuthConfig.Username != "" {
+			authUsername = &project.AuthConfig.Username
+		}
+		if project.AuthConfig.Token != "" {
+			authToken = &project.AuthConfig.Token
+		}
+		if project.AuthConfig.SSHKey != "" {
+			authSSHKey = &project.AuthConfig.SSHKey
+		}
+	}
+
+	result, err := r.db.Exec(query,
+		project.Name,
+		project.RepoPath,
+		string(project.RepoType),
+		authUsername,
+		authToken,
+		authSSHKey,
+		lastAnalyzedHash,
+		project.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("failed to create project: %w", err)
 	}
@@ -53,7 +74,7 @@ func (r *ProjectRepositoryImpl) Create(project *entities.Project) error {
 // GetByID retrieves a project by its ID
 func (r *ProjectRepositoryImpl) GetByID(id int) (*entities.Project, error) {
 	query := `
-		SELECT id, name, repo_path, last_analyzed_hash, created_at 
+		SELECT id, name, repo_path, repo_type, auth_username, auth_token, auth_ssh_key, last_analyzed_hash, created_at 
 		FROM projects 
 		WHERE id = ?
 	`
@@ -63,6 +84,10 @@ func (r *ProjectRepositoryImpl) GetByID(id int) (*entities.Project, error) {
 		&model.ID,
 		&model.Name,
 		&model.RepoPath,
+		&model.RepoType,
+		&model.AuthUsername,
+		&model.AuthToken,
+		&model.AuthSSHKey,
 		&model.LastAnalyzedHash,
 		&model.CreatedAt,
 	)
@@ -80,7 +105,7 @@ func (r *ProjectRepositoryImpl) GetByID(id int) (*entities.Project, error) {
 // GetByName retrieves a project by its name
 func (r *ProjectRepositoryImpl) GetByName(name string) (*entities.Project, error) {
 	query := `
-		SELECT id, name, repo_path, last_analyzed_hash, created_at 
+		SELECT id, name, repo_path, repo_type, auth_username, auth_token, auth_ssh_key, last_analyzed_hash, created_at 
 		FROM projects 
 		WHERE name = ?
 	`
@@ -90,6 +115,10 @@ func (r *ProjectRepositoryImpl) GetByName(name string) (*entities.Project, error
 		&model.ID,
 		&model.Name,
 		&model.RepoPath,
+		&model.RepoType,
+		&model.AuthUsername,
+		&model.AuthToken,
+		&model.AuthSSHKey,
 		&model.LastAnalyzedHash,
 		&model.CreatedAt,
 	)
@@ -107,7 +136,7 @@ func (r *ProjectRepositoryImpl) GetByName(name string) (*entities.Project, error
 // GetAll retrieves all projects
 func (r *ProjectRepositoryImpl) GetAll() ([]*entities.Project, error) {
 	query := `
-		SELECT id, name, repo_path, last_analyzed_hash, created_at 
+		SELECT id, name, repo_path, repo_type, auth_username, auth_token, auth_ssh_key, last_analyzed_hash, created_at 
 		FROM projects 
 		ORDER BY created_at DESC
 	`
@@ -125,6 +154,10 @@ func (r *ProjectRepositoryImpl) GetAll() ([]*entities.Project, error) {
 			&model.ID,
 			&model.Name,
 			&model.RepoPath,
+			&model.RepoType,
+			&model.AuthUsername,
+			&model.AuthToken,
+			&model.AuthSSHKey,
 			&model.LastAnalyzedHash,
 			&model.CreatedAt,
 		)
@@ -235,10 +268,38 @@ func (r *ProjectRepositoryImpl) modelToEntity(model *models.ProjectModel) (*enti
 		}
 	}
 
+	// Convert repository type
+	repoType := entities.RepoTypeGitURL // Default
+	switch model.RepoType {
+	case "local_dir":
+		repoType = entities.RepoTypeLocalDir
+	case "private_git":
+		repoType = entities.RepoTypePrivateGit
+	case "git_url":
+		repoType = entities.RepoTypeGitURL
+	}
+
+	// Build auth config if present
+	var authConfig *entities.GitAuthConfig
+	if model.AuthUsername != nil || model.AuthToken != nil || model.AuthSSHKey != nil {
+		authConfig = &entities.GitAuthConfig{}
+		if model.AuthUsername != nil {
+			authConfig.Username = *model.AuthUsername
+		}
+		if model.AuthToken != nil {
+			authConfig.Token = *model.AuthToken
+		}
+		if model.AuthSSHKey != nil {
+			authConfig.SSHKey = *model.AuthSSHKey
+		}
+	}
+
 	return &entities.Project{
 		ID:               model.ID,
 		Name:             model.Name,
 		RepoPath:         model.RepoPath,
+		RepoType:         repoType,
+		AuthConfig:       authConfig,
 		LastAnalyzedHash: lastAnalyzedHash,
 		CreatedAt:        model.CreatedAt,
 	}, nil

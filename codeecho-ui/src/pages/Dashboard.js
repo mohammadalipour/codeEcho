@@ -18,7 +18,7 @@ const Dashboard = () => {
 
   if (loading) {
     return (
-      <div className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+      <div className="px-4 sm:px-6 lg:px-8">
         <div className="animate-pulse">
           <div className="bg-gradient-to-br from-primary-50 via-white to-primary-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 rounded-3xl p-10 border mb-8 shadow-xl">
             <div className="h-8 w-48 bg-gray-200 dark:bg-gray-700 rounded-lg mb-2"></div>
@@ -51,7 +51,7 @@ const Dashboard = () => {
 
   if (error) {
     return (
-      <div className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+      <div className="px-4 sm:px-6 lg:px-8">
         <div className="bg-white dark:bg-gray-900 border border-red-200 dark:border-red-700 rounded-2xl shadow-xl p-10">
           <div className="flex items-start">
             <div className="bg-red-100 dark:bg-red-900 p-4 rounded-xl mr-4 shadow">
@@ -114,7 +114,7 @@ const Dashboard = () => {
   ];
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+    <div className="px-4 sm:px-6 lg:px-8">
       {/* Header */}
       <div className="mb-8">
         <div className="bg-gradient-to-br from-gray-50 to-blue-50 rounded-2xl p-8 border border-gray-200">
@@ -171,16 +171,16 @@ const Dashboard = () => {
                 <span className="text-blue-600 font-bold text-sm">1</span>
               </div>
               <div className="flex-1">
-                <h3 className="text-lg font-medium text-blue-900 mb-2">Analyze Repository</h3>
+                <h3 className="text-lg font-medium text-blue-900 mb-2">Create Project</h3>
                 <p className="text-sm text-blue-700 mb-4">
                   Add a new repository for comprehensive code analysis and insights.
                 </p>
                 <Link 
-                  to="/projects/analyze"
+                  to="/projects/create"
                   className="inline-flex items-center px-4 py-2 bg-white border border-blue-300 rounded-lg text-sm font-medium text-blue-700 hover:bg-blue-50 hover:border-blue-400 transition-colors duration-200"
                 >
                   <PlusIcon className="h-4 w-4 mr-2" />
-                  Analyze Repository
+                  Create Project
                 </Link>
                 <details className="mt-3">
                   <summary className="text-xs text-blue-600 cursor-pointer font-medium">Or use CLI</summary>

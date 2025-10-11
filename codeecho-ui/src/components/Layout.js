@@ -38,7 +38,7 @@ const Header = () => {
 
   return (
     <header className="bg-white sticky top-0 z-30 border-b border-gray-200">
-      <nav className="mx-auto flex max-w-7xl items-center justify-between p-4 lg:px-8" aria-label="Global">
+      <nav className="mx-auto flex items-center justify-between p-4 lg:px-8" aria-label="Global">
         <div className="flex items-center gap-x-12">
           <Link to="/" className="-m-1.5 p-1.5 flex items-center">
             <div className="h-8 w-8 rounded-lg bg-blue-600 flex items-center justify-center">
@@ -129,7 +129,7 @@ const Layout = ({ children }) => {
     <div className="min-h-screen bg-gray-50">
       <Header />
       <main>
-        <div className="mx-auto max-w-7xl py-6 sm:px-6 lg:px-8">
+        <div className="mx-auto py-6 sm:px-6 lg:px-8">
           {children}
         </div>
       </main>

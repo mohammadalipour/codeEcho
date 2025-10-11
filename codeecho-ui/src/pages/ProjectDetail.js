@@ -47,7 +47,7 @@ const ProjectDetail = () => {
 
   if (loading) {
     return (
-      <div className="px-4 sm:px-6 lg:px-8">
+      <div className="px-4 sm:px-6 lg:px-8 py-6">
         <div className="animate-pulse">
           <div className="h-8 w-64 bg-gray-200 rounded mb-6"></div>
           <div className="grid grid-cols-1 gap-6">
@@ -61,7 +61,7 @@ const ProjectDetail = () => {
 
   if (error) {
     return (
-      <div className="px-4 sm:px-6 lg:px-8">
+      <div className="px-4 sm:px-6 lg:px-8 py-6">
         <div className="bg-red-50 border border-red-200 rounded-md p-4">
           <div className="flex">
             <div className="ml-3">
@@ -121,14 +121,14 @@ const ProjectDetail = () => {
   const contributorsCount = getContributorsCount(commits);
 
   return (
-    <div>
+    <div className="px-4 sm:px-6 lg:px-8 py-6">
 
       {/* Stat cards removed: metrics now displayed in persistent header */}
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
         {/* Commit Trend Chart */}
-        <div className="bg-white shadow rounded-lg p-6">
+        <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
           <h3 className="text-lg font-medium text-gray-900 mb-4">Commit Trend</h3>
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={commitTrendData}>
@@ -148,7 +148,7 @@ const ProjectDetail = () => {
         </div>
 
         {/* Code Hotspots Chart */}
-        <div className="bg-white shadow rounded-lg p-6">
+        <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
           <h3 className="text-lg font-medium text-gray-900 mb-4">Code Hotspots</h3>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={hotspotsData.slice(0, 5)}>
@@ -170,7 +170,7 @@ const ProjectDetail = () => {
       </div>
 
       {/* Hotspots Table */}
-      <div className="bg-white shadow rounded-lg">
+      <div className="bg-white border border-gray-200 rounded-xl shadow-sm mb-8">
         <div className="px-4 py-5 sm:p-6">
           <h3 className="text-lg font-medium text-gray-900 mb-4">
             Top Code Hotspots

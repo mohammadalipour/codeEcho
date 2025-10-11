@@ -13,7 +13,7 @@ import KnowledgeRisk from './pages/KnowledgeRisk';
 import KnowledgeOwnership from './pages/KnowledgeOwnership';
 import TemporalCoupling from './pages/TemporalCoupling';
 import BusFactorPage from './pages/BusFactorPage';
-import AnalyzeRepository from './pages/AnalyzeRepository';
+import EnhancedProjectCreation from './components/EnhancedProjectCreation';
 import { ApiProvider } from './services/ApiContext';
 import ProjectLayout from './components/ProjectLayout';
 
@@ -48,7 +48,7 @@ function App() {
                       <Route path="/" element={<Dashboard />} />
                       <Route path="/dashboard" element={<Dashboard />} />
                       <Route path="/projects" element={<Projects />} />
-                      <Route path="/projects/analyze" element={<AnalyzeRepository />} />
+                      <Route path="/projects/create" element={<EnhancedProjectCreation />} />
                       <Route path="/projects/:id/*" element={<ProjectLayout />}>
                         <Route index element={<ProjectDetail />} />
                         <Route path="hotspots" element={<HotspotTreemap />} />

@@ -11,7 +11,7 @@ db-restore: ## Restore database from backup.sql
 .PHONY: db-create-users
 db-create-users: ## Create default users for login (admin@codeecho.com:admin123, demo@codeecho.com:demo123, test@codeecho.com:test123)
 	@echo "$(YELLOW)Creating default users...$(NC)"
-	docker exec -i codeecho-mysql mysql -u codeecho_user -pcodeecho_pass codeecho_db < default_users.sql
+	docker exec -i codeecho-mysql mysql -u $(MYSQL_USER) -p$(MYSQL_PASSWORD) $(MYSQL_DATABASE) < default_users.sql
 	@echo "$(GREEN)Default users created:$(NC)"
 	@echo "$(BLUE)Admin: admin@codeecho.com / admin123$(NC)"
 	@echo "$(BLUE)Demo:  demo@codeecho.com  / admin123$(NC)"
@@ -23,7 +23,7 @@ db-create-users: ## Create default users for login (admin@codeecho.com:admin123,
 .PHONY: db-list-users
 db-list-users: ## List all users in the database
 	@echo "$(YELLOW)Listing all users...$(NC)"
-	docker exec codeecho-mysql mysql -u codeecho_user -pcodeecho_pass codeecho_db -e "SELECT id, email, first_name, last_name, role, is_active, created_at FROM users ORDER BY role DESC, email;"
+	docker exec codeecho-mysql mysql -u $(MYSQL_USER) -p$(MYSQL_PASSWORD) $(MYSQL_DATABASE) -e "SELECT id, email, first_name, last_name, role, is_active, created_at FROM users ORDER BY role DESC, email;"
 
 .PHONY: db-reset-user-passwords
 db-reset-user-passwords: ## Reset all user passwords to default values
@@ -31,10 +31,16 @@ db-reset-user-passwords: ## Reset all user passwords to default values
 	docker exec codeecho-mysql mysql -u codeecho_user -pcodeecho_pass codeecho_db -e "UPDATE users SET password_hash = '\$$2a\$$10\$$mKkNIVP4s4eSdXo65Vw8WeplO8Ff/0IX/awtnx2OlCHrWNvxYL.ke' WHERE email = 'admin@codeecho.com'; UPDATE users SET password_hash = '\$$2a\$$10\$$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi' WHERE email = 'demo@codeecho.com'; UPDATE users SET password_hash = '\$$2a\$$10\$$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy' WHERE email = 'test@codeecho.com';"
 	@echo "$(GREEN)Passwords reset to defaults$(NC)"============================================================
 
+# Load environment variables from .env file
+ifneq (,$(wildcard ./.env))
+    include .env
+    export
+endif
+
 # Variables
 APP_NAME = codeecho
-API_PORT = 8080
-UI_PORT = 3000
+API_PORT ?= 8080
+UI_PORT ?= 3000
 DOCKER_COMPOSE = docker-compose -f docker-compose.ddd.yml
 GO_MOD = go.mod
 BINARY_DIR = bin
@@ -109,6 +115,50 @@ build-ui: ## Build the React frontend - Requires local Node
 	cd codeecho-ui && npm run build
 	@echo "$(GREEN)Frontend built successfully$(NC)"
 
+.PHONY: start
+start: ## Start CodeEcho in hybrid mode (native API + Docker services)
+	@echo "$(GREEN)🚀 Starting CodeEcho in Hybrid Mode$(NC)"
+	@echo "$(BLUE)========================================$(NC)"
+	@echo "$(YELLOW)Architecture: Native API + Docker Services$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Step 1: Starting Docker services (MySQL + UI)...$(NC)"
+	@$(DOCKER_COMPOSE) up -d codeecho-mysql codeecho-ui
+	@echo "$(GREEN)✅ Docker services started$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Step 2: Waiting for database to be ready...$(NC)"
+	@sleep 8
+	@echo "$(YELLOW)Step 3: Running database migrations...$(NC)"
+	@$(MAKE) migrate-db
+	@echo ""
+	@echo "$(YELLOW)Step 4: Creating default users...$(NC)"
+	@$(MAKE) db-create-users
+	@echo ""
+	@echo "$(YELLOW)Step 5: Building and starting native API...$(NC)"
+	@$(MAKE) build-api
+	@echo ""
+	@echo "$(GREEN)🎉 CodeEcho Started Successfully!$(NC)"
+	@echo "$(BLUE)================================$(NC)"
+	@echo "$(GREEN)✅ API: http://localhost:$(API_PORT) $(NC)(native)"
+	@echo "$(GREEN)✅ UI:  http://localhost:$(UI_PORT) $(NC)(Docker)"
+	@echo "$(GREEN)✅ DB:  localhost:3306           $(NC)(Docker)"
+	@echo ""
+	@echo "$(YELLOW)Starting native API server...$(NC)"
+	@echo "$(BLUE)Using environment variables from .env file$(NC)"
+	@./$(API_BINARY)
+
+.PHONY: stop
+stop: ## Stop all CodeEcho services
+	@echo "$(YELLOW)Stopping CodeEcho services...$(NC)"
+	@echo "$(BLUE)Stopping Docker services...$(NC)"
+	@docker-compose -f docker-compose.ddd.yml down
+	@echo "$(BLUE)Stopping any running API processes...$(NC)"
+	@-pkill -f "./bin/api" 2>/dev/null || true
+	@-pkill -f "interfaces/api" 2>/dev/null || true
+	@echo "$(GREEN)✅ All services stopped$(NC)"
+
+.PHONY: restart
+restart: stop start ## Restart CodeEcho in hybrid mode
+
 .PHONY: run
 run: ## Run the application locally (API + UI)
 	@echo "$(YELLOW)Starting CodeEcho application...$(NC)"
@@ -124,6 +174,17 @@ run-api: ## Run the API server locally
 .PHONY: run-ui
 run-ui: ## Run the React development server
 	@echo "$(YELLOW)Starting React development server on port $(UI_PORT)...$(NC)"
+	cd codeecho-ui && npm start
+
+.PHONY: dev-ui
+dev-ui: ## Start React development server with enhanced repository support
+	@echo "$(GREEN)🚀 Starting CodeEcho UI with Enhanced Repository Support$(NC)"
+	@echo "$(BLUE)Features available:$(NC)"
+	@echo "$(BLUE)  ✅ Public Git repositories (GitHub, GitLab.com, Bitbucket)$(NC)"
+	@echo "$(BLUE)  ✅ Private Git repositories (Internal GitLab + authentication)$(NC)"
+	@echo "$(BLUE)  ✅ Local directory archives (ZIP, TAR, TAR.GZ upload)$(NC)"
+	@echo "$(BLUE)UI will be available at: http://localhost:$(UI_PORT)$(NC)"
+	@echo "$(YELLOW)Access enhanced project creation at: /projects/create$(NC)"
 	cd codeecho-ui && npm start
 
 .PHONY: run-cli
@@ -187,9 +248,111 @@ test-auth: ## Test authentication with default users
 	@./test_auth.sh
 
 .PHONY: db-set-passwords
-db-set-passwords: ## Set proper individual passwords for demo users
-	@echo "$(YELLOW)Setting proper passwords for all users...$(NC)"
+db-set-passwords: ## Set passwords for default users using external script
+	@echo "$(YELLOW)Setting passwords for default users...$(NC)"
 	@./set_passwords.sh
+
+# ==============================================================================
+# Enhanced Repository Support
+# ==============================================================================
+
+.PHONY: build-enhanced
+build-enhanced: ## Build CodeEcho with enhanced repository support features
+	@echo "$(GREEN)🚀 Building CodeEcho with Enhanced Repository Support$(NC)"
+	@./build-enhanced.sh
+
+.PHONY: migrate-db
+migrate-db: ## Apply all database migrations
+	@echo "$(YELLOW)Applying database migrations...$(NC)"
+	@if docker ps --format "table {{.Names}}" | grep -q "codeecho-mysql"; then \
+		echo "$(GREEN)MySQL container found, applying migrations...$(NC)"; \
+		for migration in migrations/*.sql; do \
+			echo "$(BLUE)Applying $$migration...$(NC)"; \
+			docker exec -i codeecho-mysql mysql -u $(MYSQL_USER) -p$(MYSQL_PASSWORD) $(MYSQL_DATABASE) < $$migration; \
+		done; \
+		echo "$(GREEN)✅ All database migrations completed$(NC)"; \
+	else \
+		echo "$(RED)❌ MySQL container not running. Start with: make docker-up or make start$(NC)"; \
+		exit 1; \
+	fi
+
+.PHONY: enhanced-dev
+enhanced-dev: migrate-db dev-ui ## Setup and run enhanced repository support in development mode
+	@echo "$(GREEN)🎉 Enhanced Repository Support is ready!$(NC)"
+
+.PHONY: show-enhanced-features
+show-enhanced-features: ## Display information about enhanced repository support features
+	@echo "$(GREEN)🚀 CodeEcho Enhanced Repository Support$(NC)"
+	@echo "$(BLUE)=========================================$(NC)"
+	@echo ""
+	@echo "$(YELLOW)📦 Repository Types Supported:$(NC)"
+	@echo "$(GREEN)  ✅ Public Git Repositories$(NC)"
+	@echo "     - GitHub, GitLab.com, Bitbucket"
+	@echo "     - No authentication required"
+	@echo ""
+	@echo "$(GREEN)  ✅ Private Git Repositories$(NC)"  
+	@echo "     - Internal GitLab, GitHub Enterprise"
+	@echo "     - Username/token authentication"
+	@echo "     - SSH key support (planned)"
+	@echo ""
+	@echo "$(GREEN)  ✅ Local Directory Archives$(NC)"
+	@echo "     - ZIP, TAR, TAR.GZ files (max 100MB)"
+	@echo "     - Upload without Docker volumes"
+	@echo "     - Automatic extraction and cleanup"
+	@echo ""
+	@echo "$(YELLOW)🌐 Access Points:$(NC)"
+	@echo "$(BLUE)  - Enhanced UI: http://localhost:$(UI_PORT)/projects/create$(NC)"
+	@echo "$(BLUE)  - Legacy UI:   http://localhost:$(UI_PORT)/projects/analyze$(NC)"
+	@echo "$(BLUE)  - API Docs:    http://localhost:$(API_PORT)/api/v1/health$(NC)"
+	@echo ""
+	@echo "$(YELLOW)🔧 Quick Commands:$(NC)"
+	@echo "$(GREEN)  make enhanced-dev$(NC)       # Setup and run enhanced features"
+	@echo "$(GREEN)  make dev-ui$(NC)             # Start UI with enhanced support"
+	@echo "$(GREEN)  make migrate-db$(NC)         # Apply database migrations"
+	@echo "$(GREEN)  make show-endpoints$(NC)     # Show enhanced API endpoints"
+
+.PHONY: show-endpoints
+show-endpoints: ## Display enhanced repository support API endpoints
+	@echo "$(GREEN)🔗 Enhanced Repository Support API Endpoints$(NC)"
+	@echo "$(BLUE)==============================================$(NC)"
+	@echo ""
+	@echo "$(YELLOW)📋 Project Creation:$(NC)"
+	@echo "$(GREEN)  POST /api/v1/projects/enhanced$(NC)     # Public repositories"
+	@echo "$(GREEN)  POST /api/v1/projects/private$(NC)      # Private repositories with auth"
+	@echo "$(GREEN)  POST /api/v1/projects/from-upload$(NC)  # Projects from uploaded archives"
+	@echo ""
+	@echo "$(YELLOW)📤 File Upload Management:$(NC)"
+	@echo "$(GREEN)  POST /api/v1/upload/archive$(NC)        # Upload archive files"
+	@echo "$(GREEN)  GET  /api/v1/upload/{id}$(NC)           # Get upload information"
+	@echo "$(GREEN)  DELETE /api/v1/upload/{id}$(NC)         # Cleanup uploaded files"
+	@echo ""
+	@echo "$(YELLOW)📄 Request Body Examples:$(NC)"
+	@echo "$(BLUE)Public Repository:$(NC)"
+	@echo '{"name": "My Project", "repo_path": "https://github.com/user/repo.git", "repo_type": "git_url"}'
+	@echo ""
+	@echo "$(BLUE)Private Repository:$(NC)"
+	@echo '{"name": "Private Project", "repo_url": "https://gitlab.company.com/user/repo.git", "username": "user", "token": "glpat-xxx"}'
+	@echo ""
+	@echo "$(BLUE)From Upload:$(NC)"
+	@echo '{"name": "Local Project", "upload_id": "upload_1697028234_project.zip"}'
+
+.PHONY: test-enhanced
+test-enhanced: ## Test enhanced repository support features
+	@echo "$(YELLOW)🧪 Testing Enhanced Repository Support$(NC)"
+	@echo "$(BLUE)1. Testing public repository creation...$(NC)"
+	@curl -s -X POST http://localhost:$(API_PORT)/api/v1/projects/enhanced \
+		-H "Content-Type: application/json" \
+		-d '{"name": "Test Public", "repo_path": "https://github.com/octocat/Hello-World.git", "repo_type": "git_url"}' \
+		|| echo "$(RED)❌ API not running. Start with: make run$(NC)"
+	@echo ""
+	@echo "$(BLUE)2. Testing upload endpoint...$(NC)"
+	@curl -s http://localhost:$(API_PORT)/api/v1/health \
+		|| echo "$(RED)❌ API not running. Start with: make run$(NC)"
+	@echo "$(GREEN)✅ Enhanced features test completed$(NC)"
+
+# ==============================================================================
+# Docker Operations
+# ==============================================================================
 
 # ==============================================================================
 # Docker Operations
@@ -278,11 +441,7 @@ db-backup: ## Backup database to backup.sql
 	docker exec $(APP_NAME)-db mysqldump -u codeecho -pcodeecho codeecho_db > backup.sql
 	@echo "$(GREEN)Backup created: backup.sql$(NC)"
 
-.PHONY: db-restore
-db-restore: ## Restore database from backup.sql
-	@echo "$(YELLOW)Restoring database from backup...$(NC)"
-	docker exec -i $(APP_NAME)-db mysql -u codeecho -pcodeecho codeecho_db < backup.sql
-	@echo "$(GREEN)Database restored$(NC)"
+# Duplicate db-restore removed (already defined earlier)
 
 # ==============================================================================
 # Code Quality & Formatting
@@ -440,11 +599,8 @@ dev: docker-up ## Start development environment
 	@echo "$(BLUE)API: http://localhost:$(API_PORT)/api/v1/health$(NC)"
 	@echo "$(BLUE)UI: http://localhost:$(UI_PORT)$(NC)"
 
-.PHONY: stop
-stop: docker-down ## Stop development environment
-
-.PHONY: restart
-restart: docker-restart ## Restart development environment
+.PHONY: docker-stop
+docker-stop: docker-down ## Stop Docker development environment
 
 .PHONY: reset
 reset: clean docker-down docker-build docker-up db-reset ## Full reset (clean, rebuild, restart, reset DB)

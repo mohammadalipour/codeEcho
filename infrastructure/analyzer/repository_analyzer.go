@@ -12,13 +12,17 @@ import (
 	"codeecho/domain/values"
 )
 
+// AnalysisCancelChecker is a function type for checking if analysis should be cancelled
+type AnalysisCancelChecker func(projectID int) (bool, error)
+
 // RepositoryAnalyzer performs comprehensive analysis of Git repositories
 type RepositoryAnalyzer struct {
-	gitService  ports.GitService
-	projectRepo repositories.ProjectRepository
-	commitRepo  repositories.CommitRepository
-	changeRepo  repositories.ChangeRepository
-	db          *sql.DB
+	gitService    ports.GitService
+	projectRepo   repositories.ProjectRepository
+	commitRepo    repositories.CommitRepository
+	changeRepo    repositories.ChangeRepository
+	db            *sql.DB
+	cancelChecker AnalysisCancelChecker
 }
 
 // NewRepositoryAnalyzer creates a new repository analyzer instance

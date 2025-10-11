@@ -246,9 +246,8 @@ const TemporalCoupling = () => {
 
   return (
     <div className="py-4">
-      <div className="w-full px-4 sm:px-6 lg:px-8 py-6">
+      <div className="w-full px-4 sm:px-6 lg:px-8">
         {/* Removed back button because persistent tabs provide navigation */}
-
         <h1 className="text-xl font-semibold text-gray-900 mb-1">Temporal Coupling</h1>
         <p className="text-sm text-gray-600 mb-6 max-w-3xl">
           Files that frequently change together in commits can indicate implicit coupling, propagation chains, or modularity issues.

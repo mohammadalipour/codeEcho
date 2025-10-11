@@ -503,13 +503,13 @@ const Projects = () => {
             A list of all analyzed Git repositories and their analytics.
           </p>
         </div>
-        <div className="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
+        <div className="mt-4 sm:mt-0 sm:ml-16 sm:flex-none flex space-x-3">
           <Link
-            to="/projects/analyze"
-            className="inline-flex items-center justify-center rounded-md border border-transparent bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 sm:w-auto"
+            to="/projects/create"
+            className="inline-flex items-center justify-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 sm:w-auto"
           >
             <PlusIcon className="h-4 w-4 mr-2" />
-            Analyze Repository
+            Create Project
           </Link>
         </div>
       </div>
@@ -621,27 +621,59 @@ const EmptyState = () => (
     <FolderIcon className="mx-auto h-12 w-12 text-gray-400" />
     <h3 className="mt-2 text-sm font-medium text-gray-900">No projects</h3>
     <p className="mt-1 text-sm text-gray-500">
-      Get started by analyzing your first Git repository.
+      Get started by creating your first project from Git repositories or local files.
     </p>
     
-    <div className="mt-6">
+    <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
       <Link
-        to="/projects/analyze"
-        className="inline-flex items-center justify-center rounded-md border border-transparent bg-primary-600 px-6 py-3 text-base font-medium text-white shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+        to="/projects/create"
+        className="inline-flex items-center justify-center rounded-md border border-transparent bg-blue-600 px-6 py-3 text-base font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
       >
         <PlusIcon className="h-5 w-5 mr-2" />
-        Analyze Your First Repository
+        Create Project
       </Link>
     </div>
+
+    <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4 max-w-4xl mx-auto">
+      <div className="bg-blue-50 rounded-lg p-4 text-center">
+        <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center mx-auto mb-2">
+          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+          </svg>
+        </div>
+        <h4 className="text-sm font-medium text-blue-900 mb-1">Public Git Repos</h4>
+        <p className="text-xs text-blue-700">GitHub, GitLab.com, Bitbucket</p>
+      </div>
+      
+      <div className="bg-purple-50 rounded-lg p-4 text-center">
+        <div className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center mx-auto mb-2">
+          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+          </svg>
+        </div>
+        <h4 className="text-sm font-medium text-purple-900 mb-1">Private Git Repos</h4>
+        <p className="text-xs text-purple-700">Internal GitLab, Enterprise</p>
+      </div>
+      
+      <div className="bg-green-50 rounded-lg p-4 text-center">
+        <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-2">
+          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+          </svg>
+        </div>
+        <h4 className="text-sm font-medium text-green-900 mb-1">Local Archives</h4>
+        <p className="text-xs text-green-700">ZIP, TAR files (up to 100MB)</p>
+      </div>
+    </div>
     
-    <div className="mt-8 bg-blue-50 rounded-lg p-4 max-w-lg mx-auto">
-      <h4 className="text-sm font-medium text-blue-900 mb-2">
+    <div className="mt-8 bg-gray-50 rounded-lg p-4 max-w-lg mx-auto">
+      <h4 className="text-sm font-medium text-gray-900 mb-2">
         Or use CLI
       </h4>
-      <code className="block bg-blue-100 text-blue-800 p-2 rounded text-xs">
+      <code className="block bg-gray-100 text-gray-800 p-2 rounded text-xs">
         ./codeecho-cli analyze --project-name "MyProject" --repo-path /path/to/repo
       </code>
-      <p className="mt-2 text-xs text-blue-600">
+      <p className="mt-2 text-xs text-gray-600">
         Run this command to analyze a repository via command line.
       </p>
     </div>

@@ -4,7 +4,10 @@ import (
 	"log"
 	"net/http"
 
+	"codeecho/application/usecases/project"
 	"codeecho/infrastructure/database"
+	"codeecho/infrastructure/git"
+	"codeecho/infrastructure/persistence/mysql"
 	infraServices "codeecho/infrastructure/services"
 	"codeecho/interfaces/api/handlers"
 	"codeecho/interfaces/api/middleware"
@@ -20,8 +23,14 @@ func main() {
 	}
 	defer database.CloseDB()
 
-	// Initialize upload handler
-	uploadHandler := handlers.NewUploadProjectHandler("/tmp/uploaded_projects")
+	// Create upload handler
+	uploadHandler := handlers.NewUploadHandler("/tmp/uploaded_projects")
+
+	// Initialize enhanced project capabilities
+	gitService := git.NewGitService()
+	projectRepo := mysql.NewProjectRepository(database.DB)
+	createProjectUseCase := project.NewCreateProjectUseCase(projectRepo, gitService)
+	enhancedProjectHandler := handlers.NewProjectHandler(createProjectUseCase)
 
 	// Initialize auth handler and JWT service
 	authHandler := handlers.NewAuthHandler()
@@ -58,10 +67,19 @@ func main() {
 		{
 			// Projects
 			protected.GET("/projects", handlers.GetProjects)
-			protected.POST("/projects", handlers.CreateProject)
 			protected.GET("/projects/:id", handlers.GetProject)
 			protected.PUT("/projects/:id", handlers.UpdateProject)
 			protected.DELETE("/projects/:id", handlers.DeleteProject)
+
+			// Enhanced project creation endpoints
+			protected.POST("/projects/enhanced", enhancedProjectHandler.CreateProject)
+			protected.POST("/projects/from-upload", enhancedProjectHandler.CreateProjectFromUpload)
+			protected.POST("/projects/private", enhancedProjectHandler.CreatePrivateProject)
+
+			// File upload endpoints
+			protected.POST("/upload/archive", uploadHandler.UploadArchive)
+			protected.GET("/upload/:id", uploadHandler.GetUploadInfo)
+			protected.DELETE("/upload/:id", uploadHandler.CleanupUpload)
 
 			// Commits
 			protected.GET("/projects/:id/commits", handlers.GetProjectCommits)
@@ -87,8 +105,7 @@ func main() {
 			protected.POST("/projects/:id/cancel-analysis", handlers.CancelAnalysis)
 			protected.GET("/projects/:id/analysis-status", handlers.GetProjectAnalysisStatus)
 
-			// Project Upload
-			protected.POST("/projects/:id/upload", uploadHandler.UploadProject)
+			// Project Upload (if needed for future use)
 
 			// Debug (optional) - raw counts for troubleshooting
 			protected.GET("/projects/:id/debug/raw-counts", handlers.GetProjectRawCounts)

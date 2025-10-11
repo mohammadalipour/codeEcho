@@ -7,6 +7,10 @@ type ProjectModel struct {
 	ID               int       `db:"id"`
 	Name             string    `db:"name"`
 	RepoPath         string    `db:"repo_path"`
+	RepoType         string    `db:"repo_type"`
+	AuthUsername     *string   `db:"auth_username"`
+	AuthToken        *string   `db:"auth_token"`
+	AuthSSHKey       *string   `db:"auth_ssh_key"`
 	LastAnalyzedHash *string   `db:"last_analyzed_hash"`
 	CreatedAt        time.Time `db:"created_at"`
 }

@@ -333,7 +333,7 @@ const KnowledgeOwnership = () => {
       <style>{sliderStyles}</style>
       <div className="px-4 sm:px-6 lg:px-8 py-6">
       <div className="mb-6">
-        <h1 className="text-xl font-semibold text-gray-900">{project ? `${project.name} - Knowledge Ownership` : 'Knowledge Ownership'}</h1>
+        <h1 className="text-xl font-semibold text-gray-900">Knowledge Ownership</h1>
         <p className="mt-2 text-sm text-gray-600 max-w-3xl">Analyze file ownership concentration and potential knowledge risk across the codebase.</p>
         {error && (
           <div className="mt-4 bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm text-gray-700">{error}</div>

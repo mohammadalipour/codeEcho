@@ -4,10 +4,10 @@ services:
     image: mysql:8.0
     container_name: codeecho-mysql
     environment:
-      MYSQL_ROOT_PASSWORD: rootpassword
-      MYSQL_DATABASE: codeecho_db
-      MYSQL_USER: codeecho_user
-      MYSQL_PASSWORD: codeecho_pass
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     ports:
       - "3306:3306"
     volumes:
@@ -18,29 +18,6 @@ services:
       timeout: 20s
       retries: 10
 
-  # CodeEcho API Service
-  codeecho-api:
-    build:
-      context: .
-      dockerfile: ./interfaces/api/Dockerfile
-    container_name: codeecho-api
-    ports:
-      - "8080:8080"
-    depends_on:
-      codeecho-mysql:
-        condition: service_healthy
-    environment:
-      - DB_DSN=codeecho_user:codeecho_pass@tcp(codeecho-mysql:3306)/codeecho_db?parseTime=true
-      - JWT_SECRET=your-super-secret-jwt-key-change-in-production
-      - JWT_EXPIRATION_HOURS=24
-    volumes:
-      - shared_repos:/tmp
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--spider", "http://localhost:8080/api/v1/health"]
-      timeout: 10s
-      retries: 5
-      interval: 30s
-
   # CodeEcho UI Service (React Frontend)
   codeecho-ui:
     build:
@@ -48,11 +25,9 @@ services:
       dockerfile: Dockerfile.dev
     container_name: codeecho-ui
     ports:
-      - "3000:3000"
-    depends_on:
-      - codeecho-api
+      - "${UI_PORT}:3000"
     environment:
-      - REACT_APP_API_URL=http://localhost:8080/api/v1
+      - REACT_APP_API_URL=http://localhost:${API_PORT}/api/v1
       - CHOKIDAR_USEPOLLING=true  # For hot reloading in Docker
     volumes:
       - ./codeecho-ui/src:/app/src
@@ -60,25 +35,6 @@ services:
       - /app/node_modules  # Anonymous volume for node_modules
     stdin_open: true
     tty: true
-
-  # CodeEcho CLI Service (for manual analysis tasks)
-  codeecho-cli:
-    build:
-      context: .
-      dockerfile: ./interfaces/cli/Dockerfile
-    container_name: codeecho-cli
-    depends_on:
-      codeecho-mysql:
-        condition: service_healthy
-    environment:
-      - DB_DSN=codeecho_user:codeecho_pass@tcp(codeecho-mysql:3306)/codeecho_db?parseTime=true
-    volumes:
-      - shared_repos:/tmp
-      - /var/run/docker.sock:/var/run/docker.sock  # For Docker-based git operations
-      - ./repositories:/repositories  # Mount local repositories
-    # CLI runs in interactive mode, so we keep it running
-    entrypoint: ["/bin/sh"]
-    command: ["-c", "while true; do sleep 30; done"]
 
 volumes:
   mysql_data:

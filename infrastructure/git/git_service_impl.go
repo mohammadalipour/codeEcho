@@ -1,7 +1,11 @@
 package git
 
 import (
+	"archive/tar"
+	"archive/zip"
+	"compress/gzip"
 	"fmt"
+	"io"
 	"log"
 	"net/url"
 	"os"
@@ -52,14 +56,38 @@ func (gs *GitServiceImpl) isRemoteURL(path string) bool {
 }
 
 // isValidGitURL validates the format of a Git URL
-func (gs *GitServiceImpl) isValidGitURL(url string) bool {
-	// Basic validation for common Git URL patterns
-	if strings.Contains(url, "github.com") ||
-		strings.Contains(url, "gitlab.com") ||
-		strings.Contains(url, "bitbucket.org") ||
-		strings.HasSuffix(url, ".git") {
+func (gs *GitServiceImpl) isValidGitURL(gitURL string) bool {
+	// Parse URL to validate structure
+	parsedURL, err := url.Parse(gitURL)
+	if err != nil {
+		return false
+	}
+
+	// Check for common Git URL patterns
+	if strings.Contains(gitURL, "github.com") ||
+		strings.Contains(gitURL, "gitlab.com") ||
+		strings.Contains(gitURL, "bitbucket.org") ||
+		strings.HasSuffix(gitURL, ".git") {
 		return true
 	}
+
+	// Check for private GitLab instances
+	// Valid if it has a proper scheme and host and ends with .git or contains gitlab
+	if (parsedURL.Scheme == "http" || parsedURL.Scheme == "https" || parsedURL.Scheme == "git") &&
+		parsedURL.Host != "" {
+		// Additional patterns for private Git servers
+		if strings.Contains(strings.ToLower(parsedURL.Host), "gitlab") ||
+			strings.Contains(strings.ToLower(parsedURL.Host), "git") ||
+			strings.HasSuffix(gitURL, ".git") {
+			return true
+		}
+	}
+
+	// SSH URL format validation (git@host:user/repo.git)
+	if strings.HasPrefix(gitURL, "git@") && strings.Contains(gitURL, ":") {
+		return true
+	}
+
 	return false
 }
 
@@ -423,4 +451,275 @@ func (gs *GitServiceImpl) cleanURLFromAuth(repoURL string) string {
 	}
 
 	return repoURL
+}
+
+// GetCommitsWithAuth retrieves commits from a repository with authentication
+func (gs *GitServiceImpl) GetCommitsWithAuth(repoPath string, authConfig *ports.GitAuthConfig) ([]*ports.GitCommit, error) {
+	// Clone repository with authentication
+	localPath, err := gs.cloneRepositoryWithAuth(repoPath, authConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	commits, err := gs.getCommitsFromHash(localPath, "")
+	if err != nil {
+		return nil, err
+	}
+
+	log.Printf("[git] Retrieved %d commits with auth for repo: %s", len(commits), repoPath)
+	return commits, nil
+}
+
+// GetCommitsSinceWithAuth retrieves commits since a specific hash with authentication
+func (gs *GitServiceImpl) GetCommitsSinceWithAuth(repoPath string, sinceHash string, authConfig *ports.GitAuthConfig) ([]*ports.GitCommit, error) {
+	// Clone repository with authentication
+	localPath, err := gs.cloneRepositoryWithAuth(repoPath, authConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	commits, err := gs.getCommitsFromHash(localPath, sinceHash)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Printf("[git] Retrieved %d commits since %s with auth for repo: %s", len(commits), sinceHash, repoPath)
+	return commits, nil
+}
+
+// ValidateRepositoryWithAuth checks if the repository is accessible with given auth
+func (gs *GitServiceImpl) ValidateRepositoryWithAuth(repoPath string, authConfig *ports.GitAuthConfig) error {
+	if !gs.isRemoteURL(repoPath) {
+		// For local paths, use regular validation
+		return gs.ValidateRepository(repoPath)
+	}
+
+	// For remote URLs, try a shallow clone to validate access
+	tempDir := filepath.Join("/tmp", "codeecho-validation", fmt.Sprintf("validate-%d", time.Now().Unix()))
+	defer os.RemoveAll(tempDir)
+
+	cloneOptions := &git.CloneOptions{
+		URL:   repoPath,
+		Depth: 1, // Shallow clone for validation
+	}
+
+	// Add authentication if provided
+	auth, err := gs.buildAuthFromConfig(authConfig)
+	if err != nil {
+		return fmt.Errorf("failed to build authentication: %w", err)
+	}
+	if auth != nil {
+		cloneOptions.Auth = auth
+	}
+
+	_, err = git.PlainClone(tempDir, false, cloneOptions)
+	if err != nil {
+		return fmt.Errorf("repository validation failed: %w", err)
+	}
+
+	return nil
+}
+
+// ProcessLocalArchive extracts and processes an uploaded local directory archive
+func (gs *GitServiceImpl) ProcessLocalArchive(archivePath, extractPath string) (string, error) {
+	// Ensure extraction directory exists
+	if err := os.MkdirAll(extractPath, 0755); err != nil {
+		return "", fmt.Errorf("failed to create extraction directory: %w", err)
+	}
+
+	// Determine archive type by extension
+	if strings.HasSuffix(archivePath, ".zip") {
+		return gs.extractZipArchive(archivePath, extractPath)
+	} else if strings.HasSuffix(archivePath, ".tar.gz") || strings.HasSuffix(archivePath, ".tgz") {
+		return gs.extractTarGzArchive(archivePath, extractPath)
+	} else if strings.HasSuffix(archivePath, ".tar") {
+		return gs.extractTarArchive(archivePath, extractPath)
+	} else {
+		return "", fmt.Errorf("unsupported archive format: %s", archivePath)
+	}
+}
+
+// cloneRepositoryWithAuth clones a repository with authentication
+func (gs *GitServiceImpl) cloneRepositoryWithAuth(repoURL string, authConfig *ports.GitAuthConfig) (string, error) {
+	if !gs.isRemoteURL(repoURL) {
+		return repoURL, nil // Already a local path
+	}
+
+	// Create a temporary directory
+	tempDir := filepath.Join("/tmp", "codeecho-repos", gs.getRepoNameFromURL(repoURL))
+
+	// Remove existing directory if it exists
+	if _, err := os.Stat(tempDir); err == nil {
+		os.RemoveAll(tempDir)
+	}
+
+	// Create parent directories
+	os.MkdirAll(filepath.Dir(tempDir), 0755)
+
+	// Prepare clone options
+	cloneOptions := &git.CloneOptions{
+		URL:      repoURL,
+		Progress: os.Stdout,
+	}
+
+	// Add authentication if provided
+	auth, err := gs.buildAuthFromConfig(authConfig)
+	if err != nil {
+		return "", fmt.Errorf("failed to build authentication: %w", err)
+	}
+	if auth != nil {
+		cloneOptions.Auth = auth
+	}
+
+	// Clone the repository
+	start := time.Now()
+	_, err = git.PlainClone(tempDir, false, cloneOptions)
+
+	if err != nil {
+		log.Printf("[git] Clone with auth failed after %s: %v", time.Since(start), err)
+		return "", fmt.Errorf("failed to clone repository %s: %w", repoURL, err)
+	}
+
+	log.Printf("[git] Clone with auth succeeded in %s: %s", time.Since(start), tempDir)
+	return tempDir, nil
+}
+
+// buildAuthFromConfig creates authentication from config
+func (gs *GitServiceImpl) buildAuthFromConfig(authConfig *ports.GitAuthConfig) (*http.BasicAuth, error) {
+	if authConfig == nil {
+		return nil, nil
+	}
+
+	// HTTP basic auth with token
+	if authConfig.Username != "" && authConfig.Token != "" {
+		return &http.BasicAuth{
+			Username: authConfig.Username,
+			Password: authConfig.Token,
+		}, nil
+	}
+
+	// SSH key authentication (simplified - would need more implementation)
+	if authConfig.SSHKey != "" {
+		// For SSH, we would need to write the key to a temporary file
+		// and create SSH auth - this is a simplified version
+		return nil, fmt.Errorf("SSH key authentication not yet implemented")
+	}
+
+	return nil, nil
+}
+
+// extractZipArchive extracts a ZIP archive
+func (gs *GitServiceImpl) extractZipArchive(archivePath, extractPath string) (string, error) {
+	reader, err := zip.OpenReader(archivePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to open ZIP archive: %w", err)
+	}
+	defer reader.Close()
+
+	for _, file := range reader.File {
+		path := filepath.Join(extractPath, file.Name)
+
+		// Security: prevent path traversal
+		if !strings.HasPrefix(path, filepath.Clean(extractPath)+string(os.PathSeparator)) {
+			continue
+		}
+
+		if file.FileInfo().IsDir() {
+			os.MkdirAll(path, file.FileInfo().Mode())
+			continue
+		}
+
+		fileReader, err := file.Open()
+		if err != nil {
+			return "", err
+		}
+		defer fileReader.Close()
+
+		targetFile, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, file.FileInfo().Mode())
+		if err != nil {
+			return "", err
+		}
+		defer targetFile.Close()
+
+		_, err = io.Copy(targetFile, fileReader)
+		if err != nil {
+			return "", err
+		}
+	}
+
+	return extractPath, nil
+}
+
+// extractTarGzArchive extracts a tar.gz archive
+func (gs *GitServiceImpl) extractTarGzArchive(archivePath, extractPath string) (string, error) {
+	file, err := os.Open(archivePath)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	gzipReader, err := gzip.NewReader(file)
+	if err != nil {
+		return "", err
+	}
+	defer gzipReader.Close()
+
+	return gs.extractTarReader(gzipReader, extractPath)
+}
+
+// extractTarArchive extracts a tar archive
+func (gs *GitServiceImpl) extractTarArchive(archivePath, extractPath string) (string, error) {
+	file, err := os.Open(archivePath)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	return gs.extractTarReader(file, extractPath)
+}
+
+// extractTarReader extracts from a tar reader
+func (gs *GitServiceImpl) extractTarReader(reader io.Reader, extractPath string) (string, error) {
+	tarReader := tar.NewReader(reader)
+
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return "", err
+		}
+
+		path := filepath.Join(extractPath, header.Name)
+
+		// Security: prevent path traversal
+		if !strings.HasPrefix(path, filepath.Clean(extractPath)+string(os.PathSeparator)) {
+			continue
+		}
+
+		switch header.Typeflag {
+		case tar.TypeDir:
+			if err := os.MkdirAll(path, os.FileMode(header.Mode)); err != nil {
+				return "", err
+			}
+		case tar.TypeReg:
+			if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+				return "", err
+			}
+
+			outFile, err := os.Create(path)
+			if err != nil {
+				return "", err
+			}
+
+			if _, err := io.Copy(outFile, tarReader); err != nil {
+				outFile.Close()
+				return "", err
+			}
+			outFile.Close()
+		}
+	}
+
+	return extractPath, nil
 }
