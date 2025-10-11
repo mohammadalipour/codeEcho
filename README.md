@@ -29,14 +29,41 @@ Built with **Clean Architecture** principles:
 
 ## 🚀 **Quick Start**
 
+### **⚙️ Environment Setup**
+
+**Option 1: Automated Setup (Recommended)**
+```bash
+# Clone the repository
+git clone https://github.com/mohammadalipour/codeEcho.git
+cd codeEcho
+
+# Run the setup script (generates secure passwords and JWT secret)
+./setup.sh
+```
+
+**Option 2: Manual Setup**
+```bash
+# Copy environment configuration
+cp .env.example .env
+
+# Edit .env file and update:
+# - Database passwords (MYSQL_ROOT_PASSWORD, MYSQL_PASSWORD)
+# - JWT secret (generate with: openssl rand -base64 32)
+# - Ports if needed (API_PORT, UI_PORT)
+```
+
 ### **🐳 Docker-Only Setup (No Local Go/Node Required)**
 
 **Perfect for users without Go or Node.js installed locally!**
 
 ```bash
-# Clone and start complete development environment
+# Clone and setup environment
 git clone https://github.com/mohammadalipour/codeEcho.git
 cd codeEcho
+
+# Setup environment variables
+cp .env.example .env
+# Edit .env with your preferred settings
 
 # Optional: Validate your setup
 ./validate-docker-setup.sh
